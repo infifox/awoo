@@ -18,7 +18,7 @@ portable exe plus a simple installer, winget later.
 
 - [x] 01: Scaffold and tray presence — [details](01-scaffold-tray.md) — on windows
 - [x] 02: Master volume end to end — [details](02-master-volume.md) — on windows
-- [ ] 03: Devices tab — [details](03-devices-tab.md) — on windows
+- [x] 03: Devices tab — [details](03-devices-tab.md) — on windows
 - [ ] 04: Applications tab — [details](04-applications-tab.md) — on windows
 - [ ] 05: Per-app device routing — [details](05-per-app-routing.md) — on windows
 - [ ] 06: Tray gestures, settings, autostart — [details](06-gestures-settings.md) — on windows

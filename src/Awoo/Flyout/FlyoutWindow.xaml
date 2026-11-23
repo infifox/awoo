@@ -3,7 +3,8 @@
     x:Class="Awoo.Flyout.FlyoutWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:media="using:Microsoft.UI.Xaml.Media">
+    xmlns:media="using:Microsoft.UI.Xaml.Media"
+    xmlns:vm="using:Awoo.ViewModels">
 
     <Window.SystemBackdrop>
         <media:DesktopAcrylicBackdrop />
@@ -12,7 +13,102 @@
     <!-- Transparent so the acrylic backdrop shows through; every brush below
          is a theme resource, which is what makes light and dark both work. -->
     <Grid Background="Transparent" Padding="16,14,16,16" RowSpacing="8">
+        <Grid.Resources>
+            <!-- One device: the default marker and its name on top, its
+                 volume underneath. Shared by the outputs and the inputs,
+                 which the Plasma applet treats alike. -->
+            <DataTemplate x:Key="DeviceRowTemplate" x:DataType="vm:DeviceRowViewModel">
+                <Grid RowSpacing="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- A radio button is the Fluent answer to Plasma's
+                         default-device marker: it shows which device is the
+                         default and sets it in the one click. -->
+                    <RadioButton
+                        GroupName="{x:Bind GroupName}"
+                        MinWidth="0"
+                        Margin="0"
+                        Padding="8,0,0,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
+                        IsEnabled="{x:Bind CanSetDefault}"
+                        IsChecked="{x:Bind IsDefault, Mode=OneWay}"
+                        Checked="{x:Bind MakeDefault}"
+                        ToolTipService.ToolTip="{x:Bind DefaultToolTip, Mode=OneWay}"
+                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <FontIcon
+                                FontSize="14"
+                                VerticalAlignment="Center"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Glyph="{x:Bind DeviceGlyph}" />
+
+                            <TextBlock
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Text="{x:Bind Name, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="NoWrap"
+                                MaxLines="1" />
+                        </Grid>
+                    </RadioButton>
+
+                    <!-- Indented to sit under the name rather than under the
+                         radio button, so the column of markers reads cleanly. -->
+                    <Grid Grid.Row="1" Margin="30,0,0,0" ColumnSpacing="10" Height="32">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ToggleButton
+                            Width="36"
+                            Height="32"
+                            Padding="0"
+                            IsChecked="{x:Bind IsMuted, Mode=TwoWay}"
+                            ToolTipService.ToolTip="{x:Bind MuteToolTip, Mode=OneWay}"
+                            AutomationProperties.Name="Mute">
+                            <FontIcon FontSize="16" Glyph="{x:Bind MuteGlyph, Mode=OneWay}" />
+                        </ToggleButton>
+
+                        <Slider
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Minimum="0"
+                            Maximum="100"
+                            StepFrequency="1"
+                            SmallChange="1"
+                            LargeChange="5"
+                            IsThumbToolTipEnabled="False"
+                            Value="{x:Bind Percent, Mode=TwoWay}"
+                            AutomationProperties.Name="Volume" />
+
+                        <TextBlock
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            MinWidth="40"
+                            TextAlignment="Right"
+                            Style="{ThemeResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{x:Bind PercentText, Mode=OneWay}" />
+                    </Grid>
+                </Grid>
+            </DataTemplate>
+        </Grid.Resources>
+
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -70,6 +166,74 @@
                 Style="{ThemeResource BodyTextBlockStyle}"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 Text="{x:Bind ViewModel.PercentText, Mode=OneWay}" />
+        </Grid>
+
+        <!-- The header above, the two tabs below. -->
+        <Border
+            Grid.Row="2"
+            Height="1"
+            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <SelectorBar
+            x:Name="Tabs"
+            Grid.Row="3"
+            SelectionChanged="OnTabChanged">
+            <SelectorBarItem x:Name="DevicesTabItem" Text="Devices" IsSelected="True" />
+            <SelectorBarItem x:Name="ApplicationsTabItem" Text="Applications" />
+        </SelectorBar>
+
+        <Grid Grid.Row="4">
+            <ScrollViewer
+                x:Name="DevicesTab"
+                MaxHeight="420"
+                HorizontalScrollMode="Disabled"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        Text="Outputs"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind Devices.HasOutputs, Mode=OneWay}" />
+
+                    <ItemsRepeater ItemsSource="{x:Bind Devices.Outputs, Mode=OneWay}"
+                                   ItemTemplate="{StaticResource DeviceRowTemplate}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="10" />
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+
+                    <TextBlock
+                        Text="Inputs"
+                        Margin="0,6,0,0"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind Devices.HasInputs, Mode=OneWay}" />
+
+                    <ItemsRepeater ItemsSource="{x:Bind Devices.Inputs, Mode=OneWay}"
+                                   ItemTemplate="{StaticResource DeviceRowTemplate}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="10" />
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+
+                    <TextBlock
+                        Text="No audio devices"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind Devices.IsEmpty, Mode=OneWay}" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Task 04 fills this in. -->
+            <TextBlock
+                x:Name="ApplicationsTab"
+                Visibility="Collapsed"
+                Margin="0,4,0,4"
+                Style="{ThemeResource BodyTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                TextWrapping="Wrap"
+                Text="Per-application volume is not here yet." />
         </Grid>
     </Grid>
 </Window>

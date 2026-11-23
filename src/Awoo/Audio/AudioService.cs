@@ -3,17 +3,24 @@ using System.Runtime.InteropServices;
 namespace Awoo.Audio;
 
 /// <summary>
-/// Follows the default output device and its volume through Core Audio.
+/// Follows every active audio endpoint — outputs and inputs — through Core
+/// Audio, and which of them Windows treats as the default.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Core Audio calls its notification interfaces back on its own threads, and
 /// the documentation is explicit that those threads must not be used to call
 /// back into the enumerator. So everything this service does — reading,
-/// writing, raising <see cref="StateChanged"/> — happens on one thread: the
-/// one the <c>dispatch</c> delegate posts to, which the app wires to the UI
-/// thread. The COM callbacks themselves do nothing but copy their arguments
-/// and post.
+/// writing, raising its events — happens on one thread: the one the
+/// <c>dispatch</c> delegate posts to, which the app wires to the UI thread.
+/// The COM callbacks themselves do nothing but copy their arguments and post.
+/// </para>
+/// <para>
+/// Every endpoint is held open with its own volume callback registered, so a
+/// change to any device — not only the default one — arrives rather than
+/// being polled for. The header's <see cref="State"/> is then a view of
+/// whichever endpoint is the default output, rather than a second
+/// subscription to it.
 /// </para>
 /// <para>
 /// Changes awoo itself makes carry an event context GUID, which is how the
@@ -24,15 +31,17 @@ internal sealed class AudioService : IAudioService
 {
     private readonly Action<Action> _dispatch;
     private readonly IMMDeviceEnumerator _enumerator;
+    private readonly IPolicyConfig? _policyConfig;
     private readonly DeviceNotifications _deviceNotifications;
-    private readonly VolumeNotifications _volumeNotifications;
+
+    /// <summary>Every endpoint we hold open, by Core Audio's endpoint id.</summary>
+    private readonly Dictionary<string, Endpoint> _endpoints = new(StringComparer.Ordinal);
 
     /// <summary>Stamped on every change awoo makes, so its echo can be ignored.</summary>
     private Guid _eventContext = Guid.NewGuid();
 
-    private IMMDevice? _device;
-    private IAudioEndpointVolume? _volume;
-    private string? _deviceId;
+    private string? _defaultOutputId;
+    private string? _defaultInputId;
     private bool _disposed;
 
     /// <param name="dispatch">
@@ -44,50 +53,95 @@ internal sealed class AudioService : IAudioService
         _dispatch = dispatch;
         _enumerator = CoreAudio.CreateEnumerator();
 
-        _deviceNotifications = new DeviceNotifications(this);
-        _volumeNotifications = new VolumeNotifications(this);
+        // Undocumented, so its absence is a capability we go without rather
+        // than a failure to start.
+        _policyConfig = CoreAudio.CreatePolicyConfig();
 
+        _deviceNotifications = new DeviceNotifications(this);
         _ = _enumerator.RegisterEndpointNotificationCallback(_deviceNotifications);
 
         State = VolumeState.NoDevice;
-        Rebind();
+        Devices = [];
+        Refresh();
     }
 
     public event EventHandler<VolumeState>? StateChanged;
 
+    public event EventHandler<IReadOnlyList<AudioDeviceState>>? DevicesChanged;
+
     public VolumeState State { get; private set; }
+
+    public IReadOnlyList<AudioDeviceState> Devices { get; private set; }
+
+    public bool CanSetDefaultDevice => _policyConfig is not null;
 
     public void SetPercent(int percent)
     {
-        if (_volume is null)
+        if (DefaultOutput() is { } output)
         {
-            return;
+            SetVolume(output, percent);
         }
-
-        var context = _eventContext;
-        if (_volume.SetMasterVolumeLevelScalar(VolumeState.ToScalar(percent), ref context) != CoreAudio.S_OK)
-        {
-            return;
-        }
-
-        // Read back rather than assume: what the endpoint took is the truth.
-        PublishVolume();
     }
 
     public void SetMute(bool muted)
     {
-        if (_volume is null)
+        if (DefaultOutput() is { } output)
+        {
+            SetMuted(output, muted);
+        }
+    }
+
+    public void SetDevicePercent(string deviceId, int percent)
+    {
+        if (_endpoints.TryGetValue(deviceId, out var endpoint))
+        {
+            SetVolume(endpoint, percent);
+        }
+    }
+
+    public void SetDeviceMute(string deviceId, bool muted)
+    {
+        if (_endpoints.TryGetValue(deviceId, out var endpoint))
+        {
+            SetMuted(endpoint, muted);
+        }
+    }
+
+    public void SetDefaultDevice(string deviceId)
+    {
+        if (_disposed || _policyConfig is null || !_endpoints.TryGetValue(deviceId, out var endpoint))
         {
             return;
         }
 
-        var context = _eventContext;
-        if (_volume.SetMute(muted, ref context) != CoreAudio.S_OK)
+        if (deviceId == DefaultIdFor(endpoint.Kind))
         {
             return;
         }
 
-        PublishVolume();
+        // All three roles together: Windows keeps a default per role, and a
+        // device that is the default for playback but not for calls is not
+        // what "set as default" means to anybody looking at one radio button.
+        foreach (var role in Roles)
+        {
+            try
+            {
+                if (_policyConfig.SetDefaultEndpoint(deviceId, role) != CoreAudio.S_OK)
+                {
+                    break;
+                }
+            }
+            catch (COMException)
+            {
+                // A future Windows that moved the vtable. Nothing to do but
+                // leave the default where it was.
+                break;
+            }
+        }
+
+        // OnDefaultDeviceChanged will land as well, but not before this
+        // returns, and the row that was clicked should not wait for it.
+        Refresh();
     }
 
     public void Dispose()
@@ -99,129 +153,185 @@ internal sealed class AudioService : IAudioService
 
         _disposed = true;
         _ = _enumerator.UnregisterEndpointNotificationCallback(_deviceNotifications);
-        Detach();
+
+        foreach (var endpoint in _endpoints.Values)
+        {
+            Release(endpoint);
+        }
+
+        _endpoints.Clear();
     }
 
+    /// <summary>The roles a "set as default" covers, in the order Windows applies them.</summary>
+    private static ReadOnlySpan<Role> Roles => [Role.Console, Role.Multimedia, Role.Communications];
+
     /// <summary>
-    /// Points the service at whatever the default output device is now. Safe
-    /// to call when nothing has changed: the endpoint is only re-opened when
-    /// the device id is a different one.
+    /// Brings the endpoint cache back in line with the machine: new devices
+    /// opened, gone ones released, the rest re-read, and the two defaults
+    /// looked up again. Cheap enough to run on any notification — a handful
+    /// of endpoints, read once each.
     /// </summary>
-    private void Rebind()
+    private void Refresh()
     {
         if (_disposed)
         {
             return;
         }
 
-        var hr = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console, out var device);
-        if (hr != CoreAudio.S_OK || device is null)
+        var present = new HashSet<string>(StringComparer.Ordinal);
+        Collect(DataFlow.Render, DeviceKind.Output, present);
+        Collect(DataFlow.Capture, DeviceKind.Input, present);
+
+        foreach (var id in _endpoints.Keys.Where(id => !present.Contains(id)).ToArray())
         {
-            // E_NOTFOUND is the ordinary answer on a machine with no output.
-            Detach();
-            Publish(VolumeState.NoDevice);
-            return;
+            Release(_endpoints[id]);
+            _endpoints.Remove(id);
         }
 
-        _ = device.GetId(out var id);
-        if (id is not null && id == _deviceId && _volume is not null)
-        {
-            PublishAll();
-            return;
-        }
+        _defaultOutputId = DefaultId(DataFlow.Render);
+        _defaultInputId = DefaultId(DataFlow.Capture);
 
-        Detach();
-        Attach(device, id);
+        Publish();
     }
 
-    private void Attach(IMMDevice device, string? id)
+    /// <summary>Opens, or re-reads, every active endpoint of one flow.</summary>
+    private void Collect(DataFlow flow, DeviceKind kind, HashSet<string> present)
     {
-        var iid = typeof(IAudioEndpointVolume).GUID;
-        var hr = device.Activate(ref iid, CoreAudio.ClsCtxAll, IntPtr.Zero, out var instance);
-        if (hr != CoreAudio.S_OK || instance is not IAudioEndpointVolume volume)
+        if (_enumerator.EnumAudioEndpoints(flow, CoreAudio.DeviceStateActive, out var collection) != CoreAudio.S_OK ||
+            collection is null ||
+            collection.GetCount(out var count) != CoreAudio.S_OK)
         {
-            Publish(VolumeState.NoDevice);
             return;
         }
 
-        _device = device;
-        _deviceId = id;
-        _volume = volume;
-        _ = volume.RegisterControlChangeNotify(_volumeNotifications);
-
-        PublishAll();
-    }
-
-    private void Detach()
-    {
-        if (_volume is not null)
+        for (var index = 0; index < count; index++)
         {
-            _ = _volume.UnregisterControlChangeNotify(_volumeNotifications);
+            if (collection.Item(index, out var device) != CoreAudio.S_OK || device is null)
+            {
+                continue;
+            }
+
+            if (device.GetId(out var id) != CoreAudio.S_OK || string.IsNullOrEmpty(id))
+            {
+                continue;
+            }
+
+            present.Add(id);
+
+            if (_endpoints.TryGetValue(id, out var known))
+            {
+                Read(known);
+                continue;
+            }
+
+            if (Attach(device, id, kind) is { } attached)
+            {
+                _endpoints[id] = attached;
+            }
         }
-
-        _volume = null;
-        _device = null;
-        _deviceId = null;
-    }
-
-    /// <summary>Re-reads name, volume and mute from the endpoint.</summary>
-    private void PublishAll()
-    {
-        if (_volume is null || _device is null)
-        {
-            Publish(VolumeState.NoDevice);
-            return;
-        }
-
-        Publish(Read(FriendlyName(_device)));
     }
 
     /// <summary>
-    /// Re-reads volume and mute only, keeping the device name we already have
-    /// — this runs on every step of a slider drag.
+    /// Opens an endpoint's volume interface and registers for its changes.
+    /// Null when the endpoint will not give the interface up — a device that
+    /// is going away as we look at it.
     /// </summary>
-    private void PublishVolume()
+    private Endpoint? Attach(IMMDevice device, string id, DeviceKind kind)
     {
-        if (_volume is null)
+        var iid = typeof(IAudioEndpointVolume).GUID;
+        if (device.Activate(ref iid, CoreAudio.ClsCtxAll, IntPtr.Zero, out var instance) != CoreAudio.S_OK ||
+            instance is not IAudioEndpointVolume volume)
         {
-            Publish(VolumeState.NoDevice);
+            return null;
+        }
+
+        var endpoint = new Endpoint(this, device, volume, id, kind, FriendlyName(device, kind));
+        _ = volume.RegisterControlChangeNotify(endpoint);
+        Read(endpoint);
+        return endpoint;
+    }
+
+    private static void Release(Endpoint endpoint) =>
+        _ = endpoint.Volume.UnregisterControlChangeNotify(endpoint);
+
+    /// <summary>Re-reads volume and mute from the endpoint itself.</summary>
+    private static void Read(Endpoint endpoint)
+    {
+        if (endpoint.Volume.GetMasterVolumeLevelScalar(out var scalar) == CoreAudio.S_OK)
+        {
+            endpoint.Percent = VolumeState.ToPercent(scalar);
+        }
+
+        if (endpoint.Volume.GetMute(out var muted) == CoreAudio.S_OK)
+        {
+            endpoint.IsMuted = muted;
+        }
+    }
+
+    private void SetVolume(Endpoint endpoint, int percent)
+    {
+        var context = _eventContext;
+        if (endpoint.Volume.SetMasterVolumeLevelScalar(VolumeState.ToScalar(percent), ref context) != CoreAudio.S_OK)
+        {
             return;
         }
 
-        Publish(Read(State.DeviceName));
+        // Read back rather than assume: what the endpoint took is the truth.
+        Read(endpoint);
+        Publish();
     }
 
-    private VolumeState Read(string deviceName)
+    private void SetMuted(Endpoint endpoint, bool muted)
     {
-        if (_volume is null)
-        {
-            return VolumeState.NoDevice;
-        }
-
-        if (_volume.GetMasterVolumeLevelScalar(out var scalar) != CoreAudio.S_OK ||
-            _volume.GetMute(out var muted) != CoreAudio.S_OK)
-        {
-            return VolumeState.NoDevice;
-        }
-
-        return new VolumeState(deviceName, VolumeState.ToPercent(scalar), muted, true);
-    }
-
-    private void Publish(VolumeState state)
-    {
-        if (state == State)
+        var context = _eventContext;
+        if (endpoint.Volume.SetMute(muted, ref context) != CoreAudio.S_OK)
         {
             return;
         }
 
-        State = state;
-        StateChanged?.Invoke(this, state);
+        Read(endpoint);
+        Publish();
     }
 
-    /// <summary>Applies a notification the endpoint sent us about its own volume.</summary>
-    private void ApplyNotification(AudioVolumeNotificationData data)
+    /// <summary>
+    /// Rebuilds both published views from the endpoint cache and raises
+    /// whichever of them actually changed.
+    /// </summary>
+    private void Publish()
     {
-        if (_disposed || _volume is null)
+        var devices = _endpoints.Values
+            .OrderBy(endpoint => endpoint.Kind)
+            .ThenBy(endpoint => endpoint.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(endpoint => new AudioDeviceState(
+                endpoint.Id,
+                endpoint.Name,
+                endpoint.Kind,
+                endpoint.Percent,
+                endpoint.IsMuted,
+                endpoint.Id == DefaultIdFor(endpoint.Kind)))
+            .ToArray();
+
+        var header = DefaultOutput() is { } output
+            ? new VolumeState(output.Name, output.Percent, output.IsMuted, true)
+            : VolumeState.NoDevice;
+
+        if (header != State)
+        {
+            State = header;
+            StateChanged?.Invoke(this, header);
+        }
+
+        if (!devices.SequenceEqual(Devices))
+        {
+            Devices = devices;
+            DevicesChanged?.Invoke(this, devices);
+        }
+    }
+
+    /// <summary>Applies a notification an endpoint sent us about its own volume.</summary>
+    private void ApplyNotification(string deviceId, AudioVolumeNotificationData data)
+    {
+        if (_disposed || !_endpoints.TryGetValue(deviceId, out var endpoint))
         {
             return;
         }
@@ -232,49 +342,72 @@ internal sealed class AudioService : IAudioService
             return;
         }
 
-        Publish(State with
-        {
-            Percent = VolumeState.ToPercent(data.MasterVolume),
-            IsMuted = data.Muted != 0,
-        });
+        endpoint.Percent = VolumeState.ToPercent(data.MasterVolume);
+        endpoint.IsMuted = data.Muted != 0;
+        Publish();
     }
 
     private void RefreshNameOf(string deviceId)
     {
-        if (!_disposed && deviceId == _deviceId)
+        if (_disposed || !_endpoints.TryGetValue(deviceId, out var endpoint))
         {
-            PublishAll();
+            return;
         }
+
+        endpoint.Name = FriendlyName(endpoint.Device, endpoint.Kind);
+        Publish();
+    }
+
+    private Endpoint? DefaultOutput() =>
+        _defaultOutputId is { } id && _endpoints.TryGetValue(id, out var endpoint) ? endpoint : null;
+
+    private string? DefaultIdFor(DeviceKind kind) =>
+        kind == DeviceKind.Output ? _defaultOutputId : _defaultInputId;
+
+    /// <summary>
+    /// The default endpoint's id for one flow, or null when the machine has
+    /// none. E_NOTFOUND is the ordinary answer on a machine with no device of
+    /// that flow at all.
+    /// </summary>
+    private string? DefaultId(DataFlow flow)
+    {
+        if (_enumerator.GetDefaultAudioEndpoint(flow, Role.Console, out var device) != CoreAudio.S_OK ||
+            device is null)
+        {
+            return null;
+        }
+
+        return device.GetId(out var id) == CoreAudio.S_OK ? id : null;
     }
 
     /// <summary>
     /// The endpoint's friendly name, or a placeholder if the property store
     /// will not give it up.
     /// </summary>
-    private static string FriendlyName(IMMDevice device)
+    private static string FriendlyName(IMMDevice device, DeviceKind kind)
     {
-        const string Unknown = "Output device";
+        var unknown = kind == DeviceKind.Output ? "Output device" : "Input device";
 
         if (device.OpenPropertyStore(CoreAudio.StgmRead, out var store) != CoreAudio.S_OK || store is null)
         {
-            return Unknown;
+            return unknown;
         }
 
         var key = CoreAudio.DeviceFriendlyName;
         if (store.GetValue(ref key, out var value) != CoreAudio.S_OK)
         {
-            return Unknown;
+            return unknown;
         }
 
         try
         {
             if (value.Type != CoreAudio.VtLpwstr)
             {
-                return Unknown;
+                return unknown;
             }
 
             var name = Marshal.PtrToStringUni(value.Value);
-            return string.IsNullOrWhiteSpace(name) ? Unknown : name;
+            return string.IsNullOrWhiteSpace(name) ? unknown : name;
         }
         finally
         {
@@ -283,12 +416,32 @@ internal sealed class AudioService : IAudioService
     }
 
     /// <summary>
-    /// The endpoint's own volume callback. It runs on a Core Audio thread, so
-    /// it copies the notification — the pointer is only good for the length of
-    /// the call — and posts it.
+    /// One endpoint awoo holds open, and its own volume callback. The
+    /// callback runs on a Core Audio thread, so it copies the notification —
+    /// the pointer is only good for the length of the call — and posts it.
     /// </summary>
-    private sealed class VolumeNotifications(AudioService owner) : IAudioEndpointVolumeCallback
+    private sealed class Endpoint(
+        AudioService owner,
+        IMMDevice device,
+        IAudioEndpointVolume volume,
+        string id,
+        DeviceKind kind,
+        string name) : IAudioEndpointVolumeCallback
     {
+        internal IMMDevice Device { get; } = device;
+
+        internal IAudioEndpointVolume Volume { get; } = volume;
+
+        internal string Id { get; } = id;
+
+        internal DeviceKind Kind { get; } = kind;
+
+        internal string Name { get; set; } = name;
+
+        internal int Percent { get; set; }
+
+        internal bool IsMuted { get; set; }
+
         public int OnNotify(IntPtr notificationData)
         {
             if (notificationData == IntPtr.Zero)
@@ -297,28 +450,30 @@ internal sealed class AudioService : IAudioService
             }
 
             var data = Marshal.PtrToStructure<AudioVolumeNotificationData>(notificationData);
-            owner._dispatch(() => owner.ApplyNotification(data));
+            var deviceId = Id;
+            owner._dispatch(() => owner.ApplyNotification(deviceId, data));
             return CoreAudio.S_OK;
         }
     }
 
     /// <summary>
     /// The enumerator's callback: devices coming, going and becoming the
-    /// default. Like the volume callback, it only posts.
+    /// default. Like the volume callbacks, it only posts.
     /// </summary>
     private sealed class DeviceNotifications(AudioService owner) : IMMNotificationClient
     {
-        public int OnDeviceStateChanged(string deviceId, int newState) => Rebind();
+        public int OnDeviceStateChanged(string deviceId, int newState) => Refresh();
 
-        public int OnDeviceAdded(string deviceId) => Rebind();
+        public int OnDeviceAdded(string deviceId) => Refresh();
 
-        public int OnDeviceRemoved(string deviceId) => Rebind();
+        public int OnDeviceRemoved(string deviceId) => Refresh();
 
         public int OnDefaultDeviceChanged(DataFlow flow, Role role, string? deviceId)
         {
-            // Only the console render role is the one the flyout follows;
-            // communications and multimedia are separate defaults.
-            return flow == DataFlow.Render && role == Role.Console ? Rebind() : CoreAudio.S_OK;
+            // The console role is the one awoo follows for both flows;
+            // multimedia and communications are separate defaults that
+            // SetDefaultDevice keeps in step with it.
+            return role == Role.Console ? Refresh() : CoreAudio.S_OK;
         }
 
         public int OnPropertyValueChanged(string deviceId, PropertyKey key)
@@ -331,9 +486,9 @@ internal sealed class AudioService : IAudioService
             return CoreAudio.S_OK;
         }
 
-        private int Rebind()
+        private int Refresh()
         {
-            owner._dispatch(owner.Rebind);
+            owner._dispatch(owner.Refresh);
             return CoreAudio.S_OK;
         }
     }

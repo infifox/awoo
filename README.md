@@ -3,9 +3,10 @@
 A system-tray volume control for Windows 11, built to work the way the
 KDE Plasma 6.4 volume applet does — in native Fluent clothing.
 
-Early days. The tray icon and its flyout are standing, and the flyout's header
-drives the default output device's volume and mute for real. Device switching
-and per-app volume come next.
+Early days. The tray icon and its flyout are standing: the header drives the
+default output device for real, and the Devices tab lists every output and
+input with its own volume, mute and one-click set-as-default. Per-app volume
+and per-app routing come next.
 
 ## Building
 
@@ -28,6 +29,20 @@ and mute state as they change, and hovering it names the device and its
 volume. The flyout's header is the same thing in full: device name, mute
 toggle, slider and percentage, all of it the real system volume — change it
 from Windows, a hardware key or another app and the header follows.
+
+Under the header are two tabs, the way the Plasma applet has them. **Devices**
+lists every active endpoint, outputs then inputs, each with its own slider,
+percentage and mute — microphones exactly like speakers. The marker beside a
+device's name is both which one Windows is using and the way to change it:
+selecting it makes that device the default for all three of Windows' roles
+(playback, multimedia and calls) on the spot, and the header moves onto it.
+Plugging a device in or pulling it out adds or removes its row while the
+flyout is open. **Applications** is where per-app volume will go.
+
+Switching the default device goes through `IPolicyConfig`, which Windows does
+not document — the same route EarTrumpet and SoundSwitch take. Where a build
+of Windows will not hand it over, the markers stay as read-only indicators of
+which device is in use and nothing else in awoo is affected.
 
 Windows 11 files a newly registered tray icon under *Show hidden icons*. Drag
 awoo out of there to keep it on the taskbar.

@@ -35,15 +35,28 @@ internal readonly record struct VolumeState(string DeviceName, int Percent, bool
     /// <summary>What there is to show when no output device is available.</summary>
     internal static VolumeState NoDevice { get; } = new("No output device", 0, true, false);
 
-    internal VolumeLevel Level => this switch
+    internal VolumeLevel Level => LevelOf(Percent, IsMuted, HasDevice);
+
+    /// <summary>
+    /// The band a reading falls in. Static as well as a property, because a
+    /// device row has the same three numbers without being a
+    /// <see cref="VolumeState"/>.
+    /// </summary>
+    internal static VolumeLevel LevelOf(int percent, bool isMuted, bool hasDevice)
     {
-        { HasDevice: false } => VolumeLevel.Muted,
-        { IsMuted: true } => VolumeLevel.Muted,
-        { Percent: <= 0 } => VolumeLevel.Silent,
-        { Percent: <= 33 } => VolumeLevel.Low,
-        { Percent: <= 66 } => VolumeLevel.Medium,
-        _ => VolumeLevel.High,
-    };
+        if (!hasDevice || isMuted)
+        {
+            return VolumeLevel.Muted;
+        }
+
+        return percent switch
+        {
+            <= 0 => VolumeLevel.Silent,
+            <= 33 => VolumeLevel.Low,
+            <= 66 => VolumeLevel.Medium,
+            _ => VolumeLevel.High,
+        };
+    }
 
     /// <summary>A scalar 0.0–1.0 is what Core Audio takes; a percentage is what people read.</summary>
     internal static int ToPercent(float scalar) =>

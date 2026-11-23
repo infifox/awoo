@@ -2,6 +2,7 @@ using Awoo.Interop;
 using Awoo.ViewModels;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Windows.Graphics;
 using WinRT.Interop;
 
@@ -14,7 +15,7 @@ namespace Awoo.Flyout;
 /// </summary>
 public sealed partial class FlyoutWindow : Window
 {
-    private const int WidthDips = 360;
+    private const int WidthDips = 400;
 
     /// <summary>A floor, for the case the content has not been measured yet.</summary>
     private const int MinHeightDips = 72;
@@ -30,12 +31,14 @@ public sealed partial class FlyoutWindow : Window
 
     private DateTimeOffset _hiddenAt = DateTimeOffset.MinValue;
     private bool _exiting;
+    private bool _relayoutQueued;
 
-    internal FlyoutWindow(VolumeViewModel volume)
+    internal FlyoutWindow(VolumeViewModel volume, DevicesViewModel devices)
     {
-        // Assigned before InitializeComponent: x:Bind reads the property as
+        // Assigned before InitializeComponent: x:Bind reads the properties as
         // the generated bindings are built.
         ViewModel = volume;
+        Devices = devices;
         InitializeComponent();
 
         // For a Window root the XAML compiler wires x:Bind's first evaluation
@@ -65,10 +68,18 @@ public sealed partial class FlyoutWindow : Window
 
         Activated += OnActivated;
         AppWindow.Closing += OnClosing;
+
+        // A device plugged in or pulled out changes how tall the flyout has
+        // to be, and it can happen while it is open.
+        Devices.Outputs.CollectionChanged += (_, _) => QueueRelayout();
+        Devices.Inputs.CollectionChanged += (_, _) => QueueRelayout();
     }
 
     /// <summary>The default output device, as the header shows it.</summary>
     internal VolumeViewModel ViewModel { get; }
+
+    /// <summary>Every active endpoint, as the Devices tab lists them.</summary>
+    internal DevicesViewModel Devices { get; }
 
     /// <summary>Shows the flyout if it is hidden, hides it if it is showing.</summary>
     public void Toggle()
@@ -191,6 +202,41 @@ public sealed partial class FlyoutWindow : Window
             NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE,
             ref preference,
             sizeof(int));
+    }
+
+    /// <summary>
+    /// Re-sizes and re-anchors the flyout after its content has changed
+    /// shape, which only matters while it is on screen — the next
+    /// <see cref="Show"/> measures it anyway.
+    /// </summary>
+    private void QueueRelayout()
+    {
+        if (_relayoutQueued || _exiting)
+        {
+            return;
+        }
+
+        // Queued rather than immediate: the rows a hot-plug just added have
+        // to be through a layout pass before the content can be measured.
+        _relayoutQueued = DispatcherQueue.TryEnqueue(() =>
+        {
+            _relayoutQueued = false;
+
+            if (!_exiting && AppWindow.IsVisible)
+            {
+                Place();
+            }
+        });
+    }
+
+    private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var showDevices = sender.SelectedItem == DevicesTabItem;
+
+        DevicesTab.Visibility = showDevices ? Visibility.Visible : Visibility.Collapsed;
+        ApplicationsTab.Visibility = showDevices ? Visibility.Collapsed : Visibility.Visible;
+
+        QueueRelayout();
     }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)

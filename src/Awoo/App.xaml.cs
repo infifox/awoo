@@ -38,8 +38,9 @@ public partial class App : Application
 
         _audio = new AudioService(dispatch);
         var volume = new VolumeViewModel(_audio);
+        var devices = new DevicesViewModel(_audio);
 
-        _flyout = new FlyoutWindow(volume);
+        _flyout = new FlyoutWindow(volume, devices);
 
         _tray = new TrayIconController(volume, dispatch);
         _tray.Clicked += (_, _) => _flyout?.Toggle();

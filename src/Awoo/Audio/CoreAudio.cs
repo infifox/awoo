@@ -37,6 +37,14 @@ internal static class CoreAudio
     private static readonly Guid ClsidMMDeviceEnumerator =
         new("bcde0395-e52f-467c-8e3d-c4579291692e");
 
+    /// <summary>
+    /// CPolicyConfigClient — the shell object behind Windows' own "set as
+    /// default device". Undocumented, but unchanged since Windows 7 and the
+    /// route EarTrumpet and SoundSwitch take as well.
+    /// </summary>
+    private static readonly Guid ClsidPolicyConfigClient =
+        new("870af99c-171d-4f9e-af0d-e63df40c2bc9");
+
     /// <summary>Creates the device enumerator. Call it on the thread that will use it.</summary>
     internal static IMMDeviceEnumerator CreateEnumerator()
     {
@@ -45,6 +53,30 @@ internal static class CoreAudio
 
         return (IMMDeviceEnumerator)(Activator.CreateInstance(type)
             ?? throw new InvalidOperationException("MMDeviceEnumerator could not be created."));
+    }
+
+    /// <summary>
+    /// Creates the shell's policy-config object, or returns null where this
+    /// build of Windows does not have it. The interface is undocumented, so a
+    /// miss is an ordinary outcome rather than a fault: the caller carries on
+    /// without the ability to switch defaults.
+    /// </summary>
+    internal static IPolicyConfig? CreatePolicyConfig()
+    {
+        var type = Type.GetTypeFromCLSID(ClsidPolicyConfigClient);
+        if (type is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Activator.CreateInstance(type) as IPolicyConfig;
+        }
+        catch (Exception e) when (e is COMException or InvalidCastException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     [DllImport("ole32.dll")]
@@ -273,4 +305,59 @@ internal interface IMMNotificationClient
 
     [PreserveSig]
     int OnPropertyValueChanged([MarshalAs(UnmanagedType.LPWStr)] string deviceId, PropertyKey key);
+}
+
+/// <summary>
+/// IPolicyConfig — the undocumented interface behind Windows' own
+/// "Set as Default Device". Core Audio has no public way to change the
+/// default endpoint; this is the one every tool that does it uses.
+/// </summary>
+/// <remarks>
+/// Only <see cref="SetDefaultEndpoint"/> is ever called. The ten methods
+/// before it are declared because a COM interface is its vtable order: drop
+/// one and every slot after it points at the wrong function. Their parameters
+/// are flattened to pointers, since nothing here passes any of them.
+/// </remarks>
+[ComImport]
+[Guid("f8679f50-850a-41cf-9c72-430f290290c8")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPolicyConfig
+{
+    [PreserveSig]
+    int GetMixFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId, out IntPtr format);
+
+    [PreserveSig]
+    int GetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId, int isDefault, out IntPtr format);
+
+    [PreserveSig]
+    int ResetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
+    [PreserveSig]
+    int SetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string deviceId, IntPtr endpointFormat, IntPtr mixFormat);
+
+    [PreserveSig]
+    int GetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string deviceId, int isDefault,
+        out long defaultPeriod, out long minimumPeriod);
+
+    [PreserveSig]
+    int SetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string deviceId, ref long period);
+
+    [PreserveSig]
+    int GetShareMode([MarshalAs(UnmanagedType.LPWStr)] string deviceId, IntPtr mode);
+
+    [PreserveSig]
+    int SetShareMode([MarshalAs(UnmanagedType.LPWStr)] string deviceId, IntPtr mode);
+
+    [PreserveSig]
+    int GetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string deviceId, ref PropertyKey key, out PropVariant value);
+
+    [PreserveSig]
+    int SetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string deviceId, ref PropertyKey key, ref PropVariant value);
+
+    /// <summary>Makes <paramref name="deviceId"/> the default endpoint for one role.</summary>
+    [PreserveSig]
+    int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string deviceId, Role role);
+
+    [PreserveSig]
+    int SetEndpointVisibility([MarshalAs(UnmanagedType.LPWStr)] string deviceId, int visible);
 }
