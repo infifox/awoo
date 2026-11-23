@@ -1,5 +1,8 @@
+using Awoo.Audio;
 using Awoo.Flyout;
 using Awoo.Tray;
+using Awoo.ViewModels;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
 namespace Awoo;
@@ -11,6 +14,7 @@ namespace Awoo;
 /// </summary>
 public partial class App : Application
 {
+    private AudioService? _audio;
     private FlyoutWindow? _flyout;
     private TrayIconController? _tray;
 
@@ -21,9 +25,23 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _flyout = new FlyoutWindow();
+        // Core Audio calls back on its own threads; everything awoo does with
+        // it runs here instead, on the one thread the UI also lives on.
+        var queue = DispatcherQueue.GetForCurrentThread();
+        var dispatch = (Action action) =>
+        {
+            if (!queue.TryEnqueue(() => action()))
+            {
+                // The queue is shutting down — there is nothing left to tell.
+            }
+        };
 
-        _tray = new TrayIconController();
+        _audio = new AudioService(dispatch);
+        var volume = new VolumeViewModel(_audio);
+
+        _flyout = new FlyoutWindow(volume);
+
+        _tray = new TrayIconController(volume, dispatch);
         _tray.Clicked += (_, _) => _flyout?.Toggle();
         _tray.ExitRequested += (_, _) => Shutdown();
         _tray.Show();
@@ -40,6 +58,9 @@ public partial class App : Application
 
         _flyout?.CloseForExit();
         _flyout = null;
+
+        _audio?.Dispose();
+        _audio = null;
 
         Exit();
     }

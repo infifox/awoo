@@ -1,22 +1,36 @@
-using System.Drawing;
-using Awoo.Interop;
+using System.ComponentModel;
+using Awoo.ViewModels;
 using H.NotifyIcon;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Win32;
 
 namespace Awoo.Tray;
 
 /// <summary>
 /// awoo's presence in the notification area: the icon, its tooltip, its
-/// left-click and its right-click menu. Later tasks drive the glyph and
-/// tooltip from the audio state; this one just puts it there.
+/// left-click and its right-click menu. The icon and tooltip are drawn from
+/// the volume view model, so the tray says the same thing as the flyout.
 /// </summary>
 internal sealed class TrayIconController : IDisposable
 {
+    private readonly VolumeViewModel _volume;
+    private readonly Action<Action> _dispatch;
     private readonly TaskbarIcon _taskbarIcon;
-    private Icon? _icon;
 
-    public TrayIconController()
+    private RenderedIcon? _icon;
+    private bool _disposed;
+
+    /// <param name="volume">What the icon and tooltip show.</param>
+    /// <param name="dispatch">
+    /// Posts to the UI thread. Windows raises theme changes on a thread of
+    /// its own, and the tray icon may only be touched from the one that made
+    /// it.
+    /// </param>
+    internal TrayIconController(VolumeViewModel volume, Action<Action> dispatch)
     {
+        _volume = volume;
+        _dispatch = dispatch;
+
         var exit = new MenuFlyoutItem
         {
             Text = "Exit",
@@ -28,7 +42,7 @@ internal sealed class TrayIconController : IDisposable
 
         _taskbarIcon = new TaskbarIcon
         {
-            ToolTipText = "awoo",
+            ToolTipText = _volume.TrayToolTip,
             ContextFlyout = menu,
 
             // A native Win32 popup menu rather than a XAML flyout: with no
@@ -41,21 +55,20 @@ internal sealed class TrayIconController : IDisposable
             LeftClickCommand = new RelayCommand(() => Clicked?.Invoke(this, EventArgs.Empty)),
         };
 
-        _icon = LoadIcon();
-        if (_icon is not null)
-        {
-            _taskbarIcon.Icon = _icon;
-        }
+        DrawIcon();
+
+        _volume.PropertyChanged += OnVolumeChanged;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
     }
 
     /// <summary>Left click on the icon.</summary>
-    public event EventHandler? Clicked;
+    internal event EventHandler? Clicked;
 
     /// <summary>Exit chosen from the right-click menu.</summary>
-    public event EventHandler? ExitRequested;
+    internal event EventHandler? ExitRequested;
 
     /// <summary>Puts the icon in the notification area.</summary>
-    public void Show()
+    internal void Show()
     {
         // false: efficiency mode would have Windows throttle us, and awoo has
         // to keep up with volume changes made elsewhere.
@@ -64,30 +77,62 @@ internal sealed class TrayIconController : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        _volume.PropertyChanged -= OnVolumeChanged;
+
         _taskbarIcon.Dispose();
         _icon?.Dispose();
         _icon = null;
     }
 
-    /// <summary>
-    /// The app icon at the tray's own small-icon size, loaded from beside the
-    /// exe — an unpackaged app has no ms-appx:// to read assets from.
-    /// </summary>
-    private static Icon? LoadIcon()
+    private void OnVolumeChanged(object? sender, PropertyChangedEventArgs args)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "awoo.ico");
-        if (!File.Exists(path))
+        switch (args.PropertyName)
         {
-            return null;
+            case nameof(VolumeViewModel.Glyph):
+                DrawIcon();
+                break;
+            case nameof(VolumeViewModel.TrayToolTip):
+                _taskbarIcon.ToolTipText = _volume.TrayToolTip;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Light and dark taskbars need different icons, and the theme can change
+    /// while awoo is running.
+    /// </summary>
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs args)
+    {
+        if (args.Category is not (UserPreferenceCategory.General or UserPreferenceCategory.Color))
+        {
+            return;
         }
 
-        var width = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSMICON);
-        var height = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSMICON);
-        if (width <= 0 || height <= 0)
+        _dispatch(() =>
         {
-            return new Icon(path);
-        }
+            if (!_disposed)
+            {
+                DrawIcon();
+            }
+        });
+    }
 
-        return new Icon(path, width, height);
+    private void DrawIcon()
+    {
+        var drawn = TrayIconRenderer.Render(_volume.Level);
+        var previous = _icon;
+
+        _icon = drawn;
+        _taskbarIcon.Icon = drawn.Icon;
+
+        // Only once the tray has the new one: disposing it destroys the HICON.
+        previous?.Dispose();
     }
 }

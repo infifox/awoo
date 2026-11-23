@@ -11,31 +11,65 @@
 
     <!-- Transparent so the acrylic backdrop shows through; every brush below
          is a theme resource, which is what makes light and dark both work. -->
-    <Grid Background="Transparent" Padding="16,14,16,16" RowSpacing="10">
+    <Grid Background="Transparent" Padding="16,14,16,16" RowSpacing="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal" Spacing="10">
-            <FontIcon
-                Glyph="&#xE767;"
-                FontSize="16"
-                VerticalAlignment="Center"
-                Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-            <TextBlock
-                Text="awoo"
-                VerticalAlignment="Center"
-                Style="{ThemeResource BodyStrongTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-        </StackPanel>
-
+        <!-- The default output device, named the way Windows names it. -->
         <TextBlock
-            Grid.Row="1"
-            VerticalAlignment="Center"
-            TextWrapping="Wrap"
-            Style="{ThemeResource BodyTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-            Text="Volume controls land here." />
+            Text="{x:Bind ViewModel.DeviceName, Mode=OneWay}"
+            Style="{ThemeResource BodyStrongTextBlockStyle}"
+            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+            TextTrimming="CharacterEllipsis"
+            TextWrapping="NoWrap"
+            MaxLines="1" />
+
+        <!-- Mute, volume, percentage: the Plasma applet's header row. -->
+        <Grid Grid.Row="1" ColumnSpacing="10" Height="32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ToggleButton
+                x:Name="MuteButton"
+                Width="36"
+                Height="32"
+                Padding="0"
+                IsChecked="{x:Bind ViewModel.IsMuted, Mode=TwoWay}"
+                IsEnabled="{x:Bind ViewModel.HasDevice, Mode=OneWay}"
+                ToolTipService.ToolTip="{x:Bind ViewModel.MuteToolTip, Mode=OneWay}"
+                AutomationProperties.Name="Mute">
+                <FontIcon
+                    FontSize="16"
+                    Glyph="{x:Bind ViewModel.Glyph, Mode=OneWay}" />
+            </ToggleButton>
+
+            <Slider
+                x:Name="VolumeSlider"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Minimum="0"
+                Maximum="100"
+                StepFrequency="1"
+                SmallChange="1"
+                LargeChange="5"
+                IsThumbToolTipEnabled="False"
+                IsEnabled="{x:Bind ViewModel.HasDevice, Mode=OneWay}"
+                Value="{x:Bind ViewModel.Percent, Mode=TwoWay}"
+                AutomationProperties.Name="Volume" />
+
+            <TextBlock
+                Grid.Column="2"
+                VerticalAlignment="Center"
+                MinWidth="40"
+                TextAlignment="Right"
+                Style="{ThemeResource BodyTextBlockStyle}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="{x:Bind ViewModel.PercentText, Mode=OneWay}" />
+        </Grid>
     </Grid>
 </Window>
