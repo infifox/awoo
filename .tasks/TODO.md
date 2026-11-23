@@ -16,7 +16,7 @@ portable exe plus a simple installer, winget later.
 
 ## Tasks
 
-- [ ] 01: Scaffold and tray presence — [details](01-scaffold-tray.md) — on windows
+- [x] 01: Scaffold and tray presence — [details](01-scaffold-tray.md) — on windows
 - [ ] 02: Master volume end to end — [details](02-master-volume.md) — on windows
 - [ ] 03: Devices tab — [details](03-devices-tab.md) — on windows
 - [ ] 04: Applications tab — [details](04-applications-tab.md) — on windows

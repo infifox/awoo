@@ -1,0 +1,21 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
+*.user
+*.suo
+
+# Locally bootstrapped SDK (see build.ps1)
+.dotnet/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.sln.docstates
+
+# NuGet
+*.nupkg
+packages/
