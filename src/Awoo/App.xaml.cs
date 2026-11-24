@@ -1,5 +1,6 @@
 using Awoo.Audio;
 using Awoo.Flyout;
+using Awoo.Settings;
 using Awoo.Tray;
 using Awoo.ViewModels;
 using Microsoft.UI.Dispatching;
@@ -15,7 +16,9 @@ namespace Awoo;
 public partial class App : Application
 {
     private AudioService? _audio;
+    private SettingsService? _settings;
     private FlyoutWindow? _flyout;
+    private SettingsWindow? _settingsWindow;
     private TrayIconController? _tray;
 
     public App()
@@ -36,6 +39,12 @@ public partial class App : Application
             }
         };
 
+        _settings = new SettingsService();
+
+        // Before anything reads the settings: this is the run that decides
+        // whether autostart has ever been registered.
+        _settings.ApplyFirstRunDefaults();
+
         _audio = new AudioService(dispatch);
         var volume = new VolumeViewModel(_audio);
         var devices = new DevicesViewModel(_audio);
@@ -43,10 +52,32 @@ public partial class App : Application
 
         _flyout = new FlyoutWindow(volume, devices, apps);
 
-        _tray = new TrayIconController(volume, dispatch);
+        _tray = new TrayIconController(volume, _settings, dispatch);
         _tray.Clicked += (_, _) => _flyout?.Toggle();
+        _tray.SettingsRequested += (_, _) => ShowSettings();
         _tray.ExitRequested += (_, _) => Shutdown();
         _tray.Show();
+    }
+
+    /// <summary>
+    /// Opens the settings window, or brings up the one already open: two
+    /// windows of the same two settings could only disagree with each other.
+    /// </summary>
+    private void ShowSettings()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        if (_settingsWindow is null)
+        {
+            var window = new SettingsWindow(_settings);
+            window.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow = window;
+        }
+
+        _settingsWindow.Reveal();
     }
 
     /// <summary>
@@ -58,11 +89,16 @@ public partial class App : Application
         _tray?.Dispose();
         _tray = null;
 
+        _settingsWindow?.Close();
+        _settingsWindow = null;
+
         _flyout?.CloseForExit();
         _flyout = null;
 
         _audio?.Dispose();
         _audio = null;
+
+        _settings = null;
 
         Exit();
     }

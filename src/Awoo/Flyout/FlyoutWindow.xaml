@@ -288,6 +288,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- The default output device, named the way Windows names it. -->
@@ -447,5 +449,45 @@
                 </StackPanel>
             </ScrollViewer>
         </Grid>
+
+        <!-- The tabs above, the way out below. -->
+        <Border
+            Grid.Row="5"
+            Height="1"
+            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- The Plasma applet's "Configure Audio Devices…", under the name
+             Windows' own volume flyout gives the same link. Borderless and
+             full width so it reads as the foot of the flyout rather than as a
+             button somebody put there; the hover and pressed states come from
+             the Button template, which overrides this background. -->
+        <Button
+            x:Name="SoundSettingsButton"
+            Grid.Row="6"
+            Padding="8,7,8,7"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left"
+            Background="Transparent"
+            BorderThickness="0"
+            Click="OnSoundSettingsClick"
+            AutomationProperties.Name="More sound settings">
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <FontIcon
+                    FontSize="14"
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Glyph="&#xE713;" />
+
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Text="More sound settings" />
+            </Grid>
+        </Button>
     </Grid>
 </Window>

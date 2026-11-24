@@ -93,6 +93,44 @@ internal sealed class VolumeViewModel : INotifyPropertyChanged
     /// <summary>The level the tray icon draws.</summary>
     internal VolumeLevel Level => _state.Level;
 
+    /// <summary>
+    /// Moves the volume by <paramref name="delta"/> percentage points, which
+    /// is what one or more notches of the wheel over the tray icon come to.
+    /// Clamped at both ends: the top of the range is 100%, because
+    /// over-amplification is out of scope.
+    /// </summary>
+    /// <remarks>
+    /// Relative to the volume as it stands rather than to a figure of its
+    /// own, so a step lands where it should however the volume last moved —
+    /// including by a hardware key or another application a moment earlier.
+    /// </remarks>
+    internal void Step(int delta)
+    {
+        if (!_state.HasDevice || delta == 0)
+        {
+            return;
+        }
+
+        var target = Math.Clamp(_state.Percent + delta, VolumeState.MinPercent, VolumeState.MaxPercent);
+        if (target == _state.Percent)
+        {
+            return;
+        }
+
+        _audio.SetPercent(target);
+    }
+
+    /// <summary>Mutes if it is not muted and unmutes if it is: the middle-click gesture.</summary>
+    internal void ToggleMute()
+    {
+        if (!_state.HasDevice)
+        {
+            return;
+        }
+
+        _audio.SetMute(!_state.IsMuted);
+    }
+
     private void OnStateChanged(object? sender, VolumeState state)
     {
         var previous = _state;

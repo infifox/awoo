@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using Awoo.Interop;
 using Awoo.ViewModels;
 using Microsoft.UI.Windowing;
@@ -251,6 +253,30 @@ public sealed partial class FlyoutWindow : Window
         ApplicationsTab.Visibility = showDevices ? Visibility.Collapsed : Visibility.Visible;
 
         QueueRelayout();
+    }
+
+    /// <summary>
+    /// Windows' own sound settings, which is where everything awoo does not
+    /// do lives — per-app defaults, enhancements, formats, troubleshooting.
+    /// The Plasma applet has the same link at the foot of its flyout.
+    /// </summary>
+    private void OnSoundSettingsClick(object sender, RoutedEventArgs args)
+    {
+        // Dismissed first, because the flyout has done its part and the
+        // Settings app is about to take the foreground anyway.
+        Hide();
+
+        try
+        {
+            // UseShellExecute, because this is a URI for the shell to resolve
+            // rather than a program to run.
+            using var _ = Process.Start(new ProcessStartInfo("ms-settings:sound") { UseShellExecute = true });
+        }
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+        {
+            // No Settings app to open: an install without it, or a policy
+            // that blocks it. Nothing to do but leave it closed.
+        }
     }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)

@@ -7,8 +7,9 @@ Early days. The tray icon and its flyout are standing: the header drives the
 default output device for real, the Devices tab lists every output and input
 with its own volume, mute and one-click set-as-default, and the Applications
 tab gives everything playing or recording a slider of its own and a way to
-send it to a different output. Tray gestures, settings and autostart come
-next.
+send it to a different output. The icon takes the Plasma applet's gestures —
+scroll to change the volume, middle-click to mute — and awoo starts with
+Windows. An installer, CI and proper documentation come next.
 
 ## Building
 
@@ -24,7 +25,8 @@ a release build.
 
 awoo is an unpackaged WinUI 3 app: the result is a plain `awoo.exe` with no
 MSIX and no install step. It is tray-only — no main window and no taskbar
-button. Left-click the speaker icon for the flyout; right-click it for Exit.
+button. Left-click the speaker icon for the flyout; right-click it for
+Settings and Exit.
 
 The tray icon is drawn from the system icon font, so it shows the volume level
 and mute state as they change, and hovering it names the device and its
@@ -83,5 +85,42 @@ sound to be moved. So an application whose chosen device has since been
 unplugged keeps its route and says the device is unavailable, and a selector
 that Windows declines snaps back to where the sound is actually going.
 
+At the foot of the flyout, **More sound settings** opens Windows' own sound
+page — the Plasma applet's *Configure Audio Devices…* under the name Windows'
+own volume flyout gives the same link.
+
+## Gestures
+
+The tray icon takes the two gestures the Plasma applet has, beyond the
+left-click that opens the flyout:
+
+- **Scroll** over the icon to raise and lower the default output, five
+  percentage points at a time by default. The icon, its tooltip and the
+  flyout all follow as it moves, and it stops at 100% — awoo does not
+  over-amplify.
+- **Middle-click** the icon to mute and unmute the default output.
+
+Windows does not hand the wheel to a tray icon the way it hands over clicks,
+so awoo asks for raw mouse input while the pointer is on its icon and gives it
+up again the moment the pointer leaves. Nothing is watched while the pointer
+is elsewhere.
+
+## Settings
+
+**Settings** on the icon's right-click menu opens a window with the two
+choices awoo has:
+
+- **Volume step** — how far one notch of the wheel moves the volume, 1 to 25
+  percentage points.
+- **Start with Windows** — on from the first run, and off for good once it is
+  turned off. It is an entry under the current user's `Run` key, which is the
+  fit for an app with no installer behind it, and it is the same entry Task
+  Manager's Startup tab lists: turn awoo off there and the switch here agrees.
+  Move or reinstall awoo and the entry follows it to the new path.
+
+Settings live in `%LOCALAPPDATA%\awoo\settings.json` and are written as they
+are changed, so there is nothing to save and nothing to lose by quitting.
+
 Windows 11 files a newly registered tray icon under *Show hidden icons*. Drag
-awoo out of there to keep it on the taskbar.
+awoo out of there to keep it on the taskbar. The gestures work in either
+place.
