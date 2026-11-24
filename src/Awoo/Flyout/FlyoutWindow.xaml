@@ -12,8 +12,13 @@
 
     <!-- Transparent so the acrylic backdrop shows through; every brush below
          is a theme resource, which is what makes light and dark both work. -->
-    <Grid Background="Transparent" Padding="16,14,16,16" RowSpacing="8">
+    <Grid Background="Transparent">
         <Grid.Resources>
+            <!-- How far the flyout's content sits from its edges, and the
+                 padding inside the foot's button: the same measure, which is
+                 what squares the foot up against the rest. -->
+            <Thickness x:Key="FlyoutPadding">12</Thickness>
+
             <!-- One device: the default marker and its name on top, its
                  volume underneath. Shared by the outputs and the inputs,
                  which the Plasma applet treats alike. -->
@@ -286,173 +291,131 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- The default output device, named the way Windows names it. -->
-        <TextBlock
-            Text="{x:Bind ViewModel.DeviceName, Mode=OneWay}"
-            Style="{ThemeResource BodyStrongTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-            TextTrimming="CharacterEllipsis"
-            TextWrapping="NoWrap"
-            MaxLines="1" />
+        <!-- Everything above the foot, inside the flyout's own padding: the
+             switcher, and whichever of the two lists it has selected. -->
+        <Grid Padding="{StaticResource FlyoutPadding}" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <!-- Mute, volume, percentage: the Plasma applet's header row. -->
-        <Grid Grid.Row="1" ColumnSpacing="10" Height="32">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <!-- Stretched across the flyout, with its two items given half
+                 of it each in OnTabsSizeChanged: SelectorBar stacks its
+                 items at the width their text wants, so equal halves are
+                 not something the markup can ask for. -->
+            <SelectorBar
+                x:Name="Tabs"
+                HorizontalAlignment="Stretch"
+                SizeChanged="OnTabsSizeChanged"
+                SelectionChanged="OnTabChanged">
+                <SelectorBarItem
+                    x:Name="DevicesTabItem"
+                    Text="Devices"
+                    HorizontalContentAlignment="Center"
+                    IsSelected="True" />
+                <SelectorBarItem
+                    x:Name="ApplicationsTabItem"
+                    Text="Applications"
+                    HorizontalContentAlignment="Center" />
+            </SelectorBar>
 
-            <ToggleButton
-                x:Name="MuteButton"
-                Width="36"
-                Height="32"
-                Padding="0"
-                IsChecked="{x:Bind ViewModel.IsMuted, Mode=TwoWay}"
-                IsEnabled="{x:Bind ViewModel.HasDevice, Mode=OneWay}"
-                ToolTipService.ToolTip="{x:Bind ViewModel.MuteToolTip, Mode=OneWay}"
-                AutomationProperties.Name="Mute">
-                <FontIcon
-                    FontSize="16"
-                    Glyph="{x:Bind ViewModel.Glyph, Mode=OneWay}" />
-            </ToggleButton>
+            <Grid Grid.Row="1">
+                <ScrollViewer
+                    x:Name="DevicesTab"
+                    MaxHeight="420"
+                    HorizontalScrollMode="Disabled"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            Text="Outputs"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Devices.HasOutputs, Mode=OneWay}" />
 
-            <Slider
-                x:Name="VolumeSlider"
-                Grid.Column="1"
-                VerticalAlignment="Center"
-                Minimum="0"
-                Maximum="100"
-                StepFrequency="1"
-                SmallChange="1"
-                LargeChange="5"
-                IsThumbToolTipEnabled="False"
-                IsEnabled="{x:Bind ViewModel.HasDevice, Mode=OneWay}"
-                Value="{x:Bind ViewModel.Percent, Mode=TwoWay}"
-                AutomationProperties.Name="Volume" />
+                        <ItemsRepeater ItemsSource="{x:Bind Devices.Outputs, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource DeviceRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
 
-            <TextBlock
-                Grid.Column="2"
-                VerticalAlignment="Center"
-                MinWidth="40"
-                TextAlignment="Right"
-                Style="{ThemeResource BodyTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="{x:Bind ViewModel.PercentText, Mode=OneWay}" />
+                        <TextBlock
+                            Text="Inputs"
+                            Margin="0,6,0,0"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Devices.HasInputs, Mode=OneWay}" />
+
+                        <ItemsRepeater ItemsSource="{x:Bind Devices.Inputs, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource DeviceRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+
+                        <TextBlock
+                            Text="No audio devices"
+                            Style="{ThemeResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Devices.IsEmpty, Mode=OneWay}" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <ScrollViewer
+                    x:Name="ApplicationsTab"
+                    Visibility="Collapsed"
+                    MaxHeight="420"
+                    HorizontalScrollMode="Disabled"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            Text="Playing"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Apps.HasPlayback, Mode=OneWay}" />
+
+                        <ItemsRepeater ItemsSource="{x:Bind Apps.Playback, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource AppRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+
+                        <TextBlock
+                            Text="Recording"
+                            Margin="0,6,0,0"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Apps.HasRecording, Mode=OneWay}" />
+
+                        <ItemsRepeater ItemsSource="{x:Bind Apps.Recording, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource AppRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+
+                        <TextBlock
+                            Text="No applications are playing or recording audio"
+                            Margin="0,4,0,4"
+                            Style="{ThemeResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap"
+                            Visibility="{x:Bind Apps.IsEmpty, Mode=OneWay}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Grid>
 
-        <!-- The header above, the two tabs below. -->
+        <!-- The tabs above, the way out below. Edge to edge of the flyout,
+             running through its padding rather than stopping at it, the way
+             the Windows volume flyout's divider does. -->
         <Border
-            Grid.Row="2"
-            Height="1"
-            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-        <SelectorBar
-            x:Name="Tabs"
-            Grid.Row="3"
-            SelectionChanged="OnTabChanged">
-            <SelectorBarItem x:Name="DevicesTabItem" Text="Devices" IsSelected="True" />
-            <SelectorBarItem x:Name="ApplicationsTabItem" Text="Applications" />
-        </SelectorBar>
-
-        <Grid Grid.Row="4">
-            <ScrollViewer
-                x:Name="DevicesTab"
-                MaxHeight="420"
-                HorizontalScrollMode="Disabled"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="4">
-                    <TextBlock
-                        Text="Outputs"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Devices.HasOutputs, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Devices.Outputs, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource DeviceRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="Inputs"
-                        Margin="0,6,0,0"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Devices.HasInputs, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Devices.Inputs, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource DeviceRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="No audio devices"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Devices.IsEmpty, Mode=OneWay}" />
-                </StackPanel>
-            </ScrollViewer>
-
-            <ScrollViewer
-                x:Name="ApplicationsTab"
-                Visibility="Collapsed"
-                MaxHeight="420"
-                HorizontalScrollMode="Disabled"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="4">
-                    <TextBlock
-                        Text="Playing"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Apps.HasPlayback, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Apps.Playback, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource AppRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="Recording"
-                        Margin="0,6,0,0"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Apps.HasRecording, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Apps.Recording, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource AppRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="No applications are playing or recording audio"
-                        Margin="0,4,0,4"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        TextWrapping="Wrap"
-                        Visibility="{x:Bind Apps.IsEmpty, Mode=OneWay}" />
-                </StackPanel>
-            </ScrollViewer>
-        </Grid>
-
-        <!-- The tabs above, the way out below. -->
-        <Border
-            Grid.Row="5"
+            Grid.Row="1"
             Height="1"
             Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
@@ -460,11 +423,14 @@
              Windows' own volume flyout gives the same link. Borderless and
              full width so it reads as the foot of the flyout rather than as a
              button somebody put there; the hover and pressed states come from
-             the Button template, which overrides this background. -->
+             the Button template, which overrides this background. Square
+             corners, because the foot reaches the flyout's own edges and it is
+             the window's rounded frame that clips them. -->
         <Button
             x:Name="SoundSettingsButton"
-            Grid.Row="6"
-            Padding="8,7,8,7"
+            Grid.Row="2"
+            Padding="{StaticResource FlyoutPadding}"
+            CornerRadius="0"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Left"
             Background="Transparent"

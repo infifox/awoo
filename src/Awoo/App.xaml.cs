@@ -70,7 +70,7 @@ public partial class App : Application
         var devices = new DevicesViewModel(_audio);
         var apps = new AppsViewModel(_audio);
 
-        _flyout = new FlyoutWindow(volume, devices, apps);
+        _flyout = new FlyoutWindow(devices, apps);
 
         _tray = new TrayIconController(volume, _settings, dispatch);
         _tray.Clicked += (_, _) => _flyout?.Toggle();

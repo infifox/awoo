@@ -35,11 +35,10 @@ public sealed partial class FlyoutWindow : Window
     private bool _exiting;
     private bool _relayoutQueued;
 
-    internal FlyoutWindow(VolumeViewModel volume, DevicesViewModel devices, AppsViewModel apps)
+    internal FlyoutWindow(DevicesViewModel devices, AppsViewModel apps)
     {
         // Assigned before InitializeComponent: x:Bind reads the properties as
         // the generated bindings are built.
-        ViewModel = volume;
         Devices = devices;
         Apps = apps;
         InitializeComponent();
@@ -47,8 +46,8 @@ public sealed partial class FlyoutWindow : Window
         // For a Window root the XAML compiler wires x:Bind's first evaluation
         // to Activated rather than Loading, so a flyout Windows declines to
         // activate — focus-stealing prevention, a locked session — would come
-        // up empty. Evaluating here is what makes the header independent of
-        // ever getting focus.
+        // up empty. Evaluating here is what makes the two lists independent
+        // of ever getting focus.
         Bindings.Update();
 
         Title = "awoo";
@@ -80,9 +79,6 @@ public sealed partial class FlyoutWindow : Window
         Apps.Playback.CollectionChanged += (_, _) => QueueRelayout();
         Apps.Recording.CollectionChanged += (_, _) => QueueRelayout();
     }
-
-    /// <summary>The default output device, as the header shows it.</summary>
-    internal VolumeViewModel ViewModel { get; }
 
     /// <summary>Every active endpoint, as the Devices tab lists them.</summary>
     internal DevicesViewModel Devices { get; }
@@ -243,6 +239,26 @@ public sealed partial class FlyoutWindow : Window
                 Place();
             }
         });
+    }
+
+    /// <summary>
+    /// Gives the switcher's two items half the flyout's width each.
+    /// SelectorBar stacks its items at the width their own text wants, so
+    /// equal halves are not something the markup can ask for; the control
+    /// itself is stretched, so what it is arranged at is the whole of what
+    /// there is to divide.
+    /// </summary>
+    private void OnTabsSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        var half = args.NewSize.Width / 2;
+
+        if (half <= 0 || half == DevicesTabItem.Width)
+        {
+            return;
+        }
+
+        DevicesTabItem.Width = half;
+        ApplicationsTabItem.Width = half;
     }
 
     private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)

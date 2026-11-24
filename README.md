@@ -9,8 +9,8 @@ application, each with its own slider and its own mute, and lets you move an
 application's sound to another device without opening a settings app. awoo is
 that, for Windows 11.
 
-![The awoo flyout, showing the default output's volume above a Devices tab
-listing each output with its own slider and mute](docs/flyout-devices.png)
+![The awoo flyout, its Devices tab listing each output with its own slider,
+percentage and mute](docs/flyout-devices.png)
 
 ## Features
 
@@ -77,18 +77,13 @@ to take lightly.
 Left-click the tray icon. awoo is tray-only: no main window, no taskbar
 button.
 
-The header is the default output in full — device name, mute toggle, slider
-and percentage, all of it the real system volume. Change it from Windows, a
-hardware key or another app and the header follows.
-
-Under the header are two tabs, the way the Plasma applet has them. **Devices**
-lists every active endpoint, outputs then inputs, each with its own slider,
+It opens on two tabs, the way the Plasma applet has them. **Devices** lists
+every active endpoint, outputs then inputs, each with its own slider,
 percentage and mute — microphones exactly like speakers. The marker beside a
 device's name is both which one Windows is using and the way to change it:
 selecting it makes that device the default for all three of Windows' roles
-(playback, multimedia and calls) on the spot, and the header moves onto it.
-Plugging a device in or pulling it out adds or removes its row while the
-flyout is open.
+(playback, multimedia and calls) on the spot. Plugging a device in or pulling
+it out adds or removes its row while the flyout is open.
 
 **Applications** is the same idea one level down: a row for every application
 playing, and under them a row for every application recording, each with its

@@ -8,7 +8,7 @@ dispatched GitHub action performs releases, and the display name becomes
 
 ## Tasks
 
-- [ ] 01: Rebalance the flyout frame — [details](01-rebalance-flyout-frame.md) — on windows
+- [x] 01: Rebalance the flyout frame — [details](01-rebalance-flyout-frame.md) — on windows
 - [ ] 02: Polish the rows and tabs — [details](02-polish-rows-and-tabs.md) — on windows
 - [ ] 03: Crisp tray icon — [details](03-crisp-tray-icon.md) — on windows
 - [ ] 04: Hide devices from the flyout — [details](04-hide-devices.md) — on windows
