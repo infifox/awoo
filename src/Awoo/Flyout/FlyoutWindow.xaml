@@ -12,8 +12,32 @@
 
     <!-- Transparent so the acrylic backdrop shows through; every brush below
          is a theme resource, which is what makes light and dark both work. -->
-    <Grid Background="Transparent" Padding="16,14,16,16" RowSpacing="8">
+    <Grid Background="Transparent">
         <Grid.Resources>
+            <!-- How far the flyout's content sits from its edges, and the
+                 padding inside the foot's button: the same measure, which is
+                 what squares the foot up against the rest. -->
+            <Thickness x:Key="FlyoutPadding">12</Thickness>
+
+            <!-- The mute buttons take the Windows volume flyout's manners:
+                 nothing at rest, a wash under the pointer, and no accent when
+                 they are on — a muted row says so with its glyph alone. These
+                 are the stock ToggleButton brushes narrowed to this window,
+                 where every ToggleButton is a mute button; the colours are the
+                 theme's own, which is what keeps light and dark both right. -->
+            <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="{ThemeResource SubtleFillColorSecondary}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="{ThemeResource SubtleFillColorSecondary}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="{ThemeResource SubtleFillColorTertiary}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="{ThemeResource SubtleFillColorTertiary}" />
+
+            <!-- The checked states' foreground is white-on-accent in stock
+                 Fluent, and there is no accent here any more. -->
+            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{ThemeResource TextFillColorPrimary}" />
+            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{ThemeResource TextFillColorPrimary}" />
+            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="{ThemeResource TextFillColorSecondary}" />
+
             <!-- One device: the default marker and its name on top, its
                  volume underneath. Shared by the outputs and the inputs,
                  which the Plasma applet treats alike. -->
@@ -39,31 +63,20 @@
                         Checked="{x:Bind MakeDefault}"
                         ToolTipService.ToolTip="{x:Bind DefaultToolTip, Mode=OneWay}"
                         AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
-                        <Grid ColumnSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <FontIcon
-                                FontSize="14"
-                                VerticalAlignment="Center"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Glyph="{x:Bind DeviceGlyph}" />
-
-                            <TextBlock
-                                Grid.Column="1"
-                                VerticalAlignment="Center"
-                                Text="{x:Bind Name, Mode=OneWay}"
-                                TextTrimming="CharacterEllipsis"
-                                TextWrapping="NoWrap"
-                                MaxLines="1" />
-                        </Grid>
+                        <!-- The name alone: which kind of device this is, the
+                             Outputs and Inputs headings already say. -->
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Text="{x:Bind Name, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            MaxLines="1" />
                     </RadioButton>
 
-                    <!-- Indented to sit under the name rather than under the
-                         radio button, so the column of markers reads cleanly. -->
-                    <Grid Grid.Row="1" Margin="30,0,0,0" ColumnSpacing="10" Height="32">
+                    <!-- Flush left, so the mute button's edge lines up with
+                         the radio button above it rather than with the name,
+                         the way the Windows volume flyout stacks them. -->
+                    <Grid Grid.Row="1" ColumnSpacing="10" Height="32">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -74,6 +87,7 @@
                             Width="36"
                             Height="32"
                             Padding="0"
+                            BorderThickness="0"
                             IsChecked="{x:Bind IsMuted, Mode=TwoWay}"
                             ToolTipService.ToolTip="{x:Bind MuteToolTip, Mode=OneWay}"
                             AutomationProperties.Name="Mute">
@@ -238,9 +252,9 @@
                         </DropDownButton>
                     </Grid>
 
-                    <!-- Indented to sit under the name, the way a device
-                         row's controls do. -->
-                    <Grid Grid.Row="1" Margin="32,0,0,0" ColumnSpacing="10" Height="32">
+                    <!-- Lined up with the icon above it, the way a device
+                         row's controls line up with its radio button. -->
+                    <Grid Grid.Row="1" Margin="8,0,0,0" ColumnSpacing="10" Height="32">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -251,6 +265,7 @@
                             Width="36"
                             Height="32"
                             Padding="0"
+                            BorderThickness="0"
                             IsChecked="{x:Bind IsMuted, Mode=TwoWay}"
                             ToolTipService.ToolTip="{x:Bind MuteToolTip, Mode=OneWay}"
                             AutomationProperties.Name="Mute">
@@ -286,173 +301,139 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- The default output device, named the way Windows names it. -->
-        <TextBlock
-            Text="{x:Bind ViewModel.DeviceName, Mode=OneWay}"
-            Style="{ThemeResource BodyStrongTextBlockStyle}"
-            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-            TextTrimming="CharacterEllipsis"
-            TextWrapping="NoWrap"
-            MaxLines="1" />
+        <!-- Everything above the foot, inside the flyout's own padding: the
+             switcher, and whichever of the two lists it has selected. -->
+        <Grid Padding="{StaticResource FlyoutPadding}" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <!-- Mute, volume, percentage: the Plasma applet's header row. -->
-        <Grid Grid.Row="1" ColumnSpacing="10" Height="32">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <!-- Stretched across the flyout, with its two items given half
+                 of it each in OnTabsSizeChanged: SelectorBar stacks its
+                 items at the width their text wants, so equal halves are
+                 not something the markup can ask for. -->
+            <SelectorBar
+                x:Name="Tabs"
+                HorizontalAlignment="Stretch"
+                SizeChanged="OnTabsSizeChanged"
+                SelectionChanged="OnTabChanged">
+                <SelectorBarItem
+                    x:Name="DevicesTabItem"
+                    Text="Devices"
+                    HorizontalContentAlignment="Center"
+                    IsSelected="True" />
+                <SelectorBarItem
+                    x:Name="ApplicationsTabItem"
+                    Text="Applications"
+                    HorizontalContentAlignment="Center" />
+            </SelectorBar>
 
-            <ToggleButton
-                x:Name="MuteButton"
-                Width="36"
-                Height="32"
-                Padding="0"
-                IsChecked="{x:Bind ViewModel.IsMuted, Mode=TwoWay}"
-                IsEnabled="{x:Bind ViewModel.HasDevice, Mode=OneWay}"
-                ToolTipService.ToolTip="{x:Bind ViewModel.MuteToolTip, Mode=OneWay}"
-                AutomationProperties.Name="Mute">
-                <FontIcon
-                    FontSize="16"
-                    Glyph="{x:Bind ViewModel.Glyph, Mode=OneWay}" />
-            </ToggleButton>
+            <Grid Grid.Row="1">
+                <!-- SizeChanged is where the scrollbar's gutter is opened and
+                     closed; see OnTabSizeChanged. -->
+                <ScrollViewer
+                    x:Name="DevicesTab"
+                    MaxHeight="420"
+                    HorizontalScrollMode="Disabled"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto"
+                    SizeChanged="OnTabSizeChanged">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            Text="Outputs"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Devices.HasOutputs, Mode=OneWay}" />
 
-            <Slider
-                x:Name="VolumeSlider"
-                Grid.Column="1"
-                VerticalAlignment="Center"
-                Minimum="0"
-                Maximum="100"
-                StepFrequency="1"
-                SmallChange="1"
-                LargeChange="5"
-                IsThumbToolTipEnabled="False"
-                IsEnabled="{x:Bind ViewModel.HasDevice, Mode=OneWay}"
-                Value="{x:Bind ViewModel.Percent, Mode=TwoWay}"
-                AutomationProperties.Name="Volume" />
+                        <ItemsRepeater ItemsSource="{x:Bind Devices.Outputs, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource DeviceRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
 
-            <TextBlock
-                Grid.Column="2"
-                VerticalAlignment="Center"
-                MinWidth="40"
-                TextAlignment="Right"
-                Style="{ThemeResource BodyTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="{x:Bind ViewModel.PercentText, Mode=OneWay}" />
+                        <TextBlock
+                            Text="Inputs"
+                            Margin="0,6,0,0"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Devices.HasInputs, Mode=OneWay}" />
+
+                        <ItemsRepeater ItemsSource="{x:Bind Devices.Inputs, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource DeviceRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+
+                        <TextBlock
+                            Text="No audio devices"
+                            Style="{ThemeResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Devices.IsEmpty, Mode=OneWay}" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <ScrollViewer
+                    x:Name="ApplicationsTab"
+                    Visibility="Collapsed"
+                    MaxHeight="420"
+                    HorizontalScrollMode="Disabled"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto"
+                    SizeChanged="OnTabSizeChanged">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            Text="Playing"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Apps.HasPlayback, Mode=OneWay}" />
+
+                        <ItemsRepeater ItemsSource="{x:Bind Apps.Playback, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource AppRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+
+                        <TextBlock
+                            Text="Recording"
+                            Margin="0,6,0,0"
+                            Style="{ThemeResource CaptionTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind Apps.HasRecording, Mode=OneWay}" />
+
+                        <ItemsRepeater ItemsSource="{x:Bind Apps.Recording, Mode=OneWay}"
+                                       ItemTemplate="{StaticResource AppRowTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+
+                        <!-- Centred and understated: nothing playing is the
+                             quiet case rather than something to announce. -->
+                        <TextBlock
+                            Text="No applications are playing or recording audio"
+                            Margin="0,4,0,4"
+                            HorizontalAlignment="Center"
+                            TextAlignment="Center"
+                            Style="{ThemeResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap"
+                            Visibility="{x:Bind Apps.IsEmpty, Mode=OneWay}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Grid>
 
-        <!-- The header above, the two tabs below. -->
+        <!-- The tabs above, the way out below. Edge to edge of the flyout,
+             running through its padding rather than stopping at it, the way
+             the Windows volume flyout's divider does. -->
         <Border
-            Grid.Row="2"
-            Height="1"
-            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-
-        <SelectorBar
-            x:Name="Tabs"
-            Grid.Row="3"
-            SelectionChanged="OnTabChanged">
-            <SelectorBarItem x:Name="DevicesTabItem" Text="Devices" IsSelected="True" />
-            <SelectorBarItem x:Name="ApplicationsTabItem" Text="Applications" />
-        </SelectorBar>
-
-        <Grid Grid.Row="4">
-            <ScrollViewer
-                x:Name="DevicesTab"
-                MaxHeight="420"
-                HorizontalScrollMode="Disabled"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="4">
-                    <TextBlock
-                        Text="Outputs"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Devices.HasOutputs, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Devices.Outputs, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource DeviceRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="Inputs"
-                        Margin="0,6,0,0"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Devices.HasInputs, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Devices.Inputs, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource DeviceRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="No audio devices"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Devices.IsEmpty, Mode=OneWay}" />
-                </StackPanel>
-            </ScrollViewer>
-
-            <ScrollViewer
-                x:Name="ApplicationsTab"
-                Visibility="Collapsed"
-                MaxHeight="420"
-                HorizontalScrollMode="Disabled"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="4">
-                    <TextBlock
-                        Text="Playing"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Apps.HasPlayback, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Apps.Playback, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource AppRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="Recording"
-                        Margin="0,6,0,0"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind Apps.HasRecording, Mode=OneWay}" />
-
-                    <ItemsRepeater ItemsSource="{x:Bind Apps.Recording, Mode=OneWay}"
-                                   ItemTemplate="{StaticResource AppRowTemplate}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="10" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
-
-                    <TextBlock
-                        Text="No applications are playing or recording audio"
-                        Margin="0,4,0,4"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        TextWrapping="Wrap"
-                        Visibility="{x:Bind Apps.IsEmpty, Mode=OneWay}" />
-                </StackPanel>
-            </ScrollViewer>
-        </Grid>
-
-        <!-- The tabs above, the way out below. -->
-        <Border
-            Grid.Row="5"
+            Grid.Row="1"
             Height="1"
             Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
@@ -460,11 +441,14 @@
              Windows' own volume flyout gives the same link. Borderless and
              full width so it reads as the foot of the flyout rather than as a
              button somebody put there; the hover and pressed states come from
-             the Button template, which overrides this background. -->
+             the Button template, which overrides this background. Square
+             corners, because the foot reaches the flyout's own edges and it is
+             the window's rounded frame that clips them. -->
         <Button
             x:Name="SoundSettingsButton"
-            Grid.Row="6"
-            Padding="8,7,8,7"
+            Grid.Row="2"
+            Padding="{StaticResource FlyoutPadding}"
+            CornerRadius="0"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Left"
             Background="Transparent"

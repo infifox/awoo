@@ -1,12 +1,13 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Awoo.Audio;
+using Awoo.Settings;
 
 namespace Awoo.ViewModels;
 
 /// <summary>
-/// The Devices tab: every active endpoint, outputs above inputs, each a
-/// <see cref="DeviceRowViewModel"/>.
+/// The Devices tab: every active endpoint the user has not hidden, outputs
+/// above inputs, each a <see cref="DeviceRowViewModel"/>.
 /// </summary>
 /// <remarks>
 /// The service hands over a whole new list on every change, and this class
@@ -18,15 +19,25 @@ namespace Awoo.ViewModels;
 public sealed class DevicesViewModel : INotifyPropertyChanged
 {
     private readonly IAudioService _audio;
+    private readonly SettingsService _settings;
+
+    /// <summary>
+    /// The last list the service published, whole. Kept because hiding a
+    /// device changes which of them are shown without the devices themselves
+    /// having changed at all.
+    /// </summary>
+    private IReadOnlyList<AudioDeviceState> _devices = [];
 
     private string? _defaultOutputId;
     private string? _defaultInputId;
 
-    internal DevicesViewModel(IAudioService audio)
+    internal DevicesViewModel(IAudioService audio, SettingsService settings)
     {
         _audio = audio;
+        _settings = settings;
         Apply(audio.Devices);
         _audio.DevicesChanged += OnDevicesChanged;
+        _settings.HiddenDevicesChanged += OnHiddenDevicesChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -45,20 +56,30 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
 
     private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices) => Apply(devices);
 
+    /// <summary>
+    /// A device hidden or shown again in the settings window. The same
+    /// devices as before, so this is the same fold over a different answer to
+    /// which of them are listed.
+    /// </summary>
+    private void OnHiddenDevicesChanged(object? sender, EventArgs args) => Apply(_devices);
+
     private void Apply(IReadOnlyList<AudioDeviceState> devices)
     {
+        _devices = devices;
+
         var hadOutputs = HasOutputs;
         var hadInputs = HasInputs;
+        var shown = Shown(devices);
 
-        Reconcile(Outputs, devices, DeviceKind.Output);
-        Reconcile(Inputs, devices, DeviceKind.Input);
+        Reconcile(Outputs, shown, DeviceKind.Output);
+        Reconcile(Inputs, shown, DeviceKind.Input);
 
         // A radio button unselects its siblings the moment it is clicked,
         // before the switch has been through Windows. Once the service says
         // where the default actually is, the whole group states its case
         // again — which is also how a failed switch snaps back.
-        RestateIfDefaultMoved(Outputs, DeviceKind.Output, ref _defaultOutputId, devices);
-        RestateIfDefaultMoved(Inputs, DeviceKind.Input, ref _defaultInputId, devices);
+        RestateIfDefaultMoved(Outputs, DeviceKind.Output, ref _defaultOutputId, shown);
+        RestateIfDefaultMoved(Inputs, DeviceKind.Input, ref _defaultInputId, shown);
 
         if (HasOutputs != hadOutputs)
         {
@@ -75,6 +96,15 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
             Raise(nameof(IsEmpty));
         }
     }
+
+    /// <summary>
+    /// The devices this tab lists: the ones the user has not hidden, and a
+    /// hidden one that is its kind's default anyway. The exception is what
+    /// keeps the volume being turned down from costing the slider that turns
+    /// it back up; the device hides as soon as the default moves elsewhere.
+    /// </summary>
+    private AudioDeviceState[] Shown(IReadOnlyList<AudioDeviceState> devices) =>
+        devices.Where(device => device.IsDefault || !_settings.IsDeviceHidden(device.Id)).ToArray();
 
     /// <summary>
     /// Brings one collection in line with the states of one kind, matching by

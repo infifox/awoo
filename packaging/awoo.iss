@@ -30,16 +30,21 @@
   #define OutputDir "..\artifacts\installer"
 #endif
 
+; Two spellings of the name, and the difference matters. AppName is the one
+; Windows keeps things under -- the install folder, the Run value and the
+; settings folder -- and it stays lowercase, because an upgrade and an
+; uninstall find those by name. AppDisplayName is what a person reads.
 #define AppName "awoo"
+#define AppDisplayName "Awoo"
 #define AppExe "awoo.exe"
-#define AppPublisher "awoo contributors"
+#define AppPublisher "Awoo contributors"
 #define AppUrl "https://github.com/infifox/awoo"
 #define RunKey "Software\Microsoft\Windows\CurrentVersion\Run"
 
 [Setup]
 ; Never change AppId: it is what Windows matches an upgrade and an uninstall by.
 AppId={{748E8857-2F48-41CA-9A3B-02FEAA632965}
-AppName={#AppName}
+AppName={#AppDisplayName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
@@ -52,7 +57,7 @@ VersionInfoVersion={#AppVersionNumeric}
 ; nothing here ever asks for elevation.
 PrivilegesRequired=lowest
 DefaultDirName={autopf}\{#AppName}
-DefaultGroupName={#AppName}
+DefaultGroupName={#AppDisplayName}
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 
@@ -66,7 +71,7 @@ OutputBaseFilename=awoo-{#AppVersion}-setup
 SetupIconFile=..\src\Awoo\Assets\awoo.ico
 LicenseFile=..\LICENSE
 UninstallDisplayIcon={app}\{#AppExe}
-UninstallDisplayName={#AppName}
+UninstallDisplayName={#AppDisplayName}
 WizardStyle=modern
 Compression=lzma2/max
 SolidCompression=yes
@@ -83,8 +88,15 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; NTFS keeps a file's existing spelling when something writes over it, so the
+; shortcut an earlier install left called "awoo" would go on reading that way
+; in the Start Menu. Taking it away first has the new one created under its
+; own name.
+Type: files; Name: "{autoprograms}\{#AppName}.lnk"
+
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
+Name: "{autoprograms}\{#AppDisplayName}"; Filename: "{app}\{#AppExe}"
 
 [Registry]
 ; "Start with Windows", on by default the way task 06 settled it. awoo writes
@@ -99,7 +111,7 @@ Root: HKCU; Subkey: "{#RunKey}"; ValueType: string; ValueName: "{#AppName}"; \
   ValueData: """{app}\{#AppExe}"""; Flags: uninsdeletevalue; Check: IsFreshInstall
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; \
+Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppDisplayName}}"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Awoo.Audio;
+using Awoo.Settings;
 using Microsoft.UI.Xaml.Media;
 
 namespace Awoo.ViewModels;
@@ -33,13 +34,19 @@ public sealed class AppRowViewModel : INotifyPropertyChanged
     private const string MissingRouteName = "Unavailable device";
 
     private readonly IAudioService _audio;
+    private readonly SettingsService _settings;
 
     private AudioAppState _state;
     private IReadOnlyList<AudioDeviceState> _outputs;
 
-    internal AppRowViewModel(IAudioService audio, AudioAppState state, IReadOnlyList<AudioDeviceState> outputs)
+    internal AppRowViewModel(
+        IAudioService audio,
+        SettingsService settings,
+        AudioAppState state,
+        IReadOnlyList<AudioDeviceState> outputs)
     {
         _audio = audio;
+        _settings = settings;
         _state = state;
         _outputs = outputs;
         FallbackGlyph = VolumeGlyph.ForSession(state.Kind);
@@ -238,7 +245,14 @@ public sealed class AppRowViewModel : INotifyPropertyChanged
 
         foreach (var output in _outputs)
         {
-            wanted.Add((output.Id, output.Name));
+            // A device hidden from the volume control is hidden here as
+            // well: hiding one says it is never used, and that holds for
+            // sending an application to it. A row already routed to it
+            // still names it — NameOf reads every output, hidden or not.
+            if (!_settings.IsDeviceHidden(output.Id))
+            {
+                wanted.Add((output.Id, output.Name));
+            }
         }
 
         for (var index = 0; index < wanted.Count; index++)

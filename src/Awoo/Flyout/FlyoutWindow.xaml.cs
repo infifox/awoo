@@ -23,6 +23,15 @@ public sealed partial class FlyoutWindow : Window
     private const int MinHeightDips = 72;
 
     /// <summary>
+    /// How much room a tab leaves beside its rows for its own scrollbar.
+    /// WinUI's vertical ScrollBar is <c>ScrollBarSize</c> wide — 16 — inside a
+    /// one-pixel margin either side, and the ScrollViewer template draws it
+    /// over the content rather than beside it, which is what had it covering
+    /// the right edge of the device list.
+    /// </summary>
+    private const double ScrollGutterDips = 18;
+
+    /// <summary>
     /// A click on the tray icon deactivates the flyout before the click
     /// handler runs. Inside this window, a toggle is read as "that click is
     /// what closed it" rather than as a request to open it again.
@@ -35,11 +44,10 @@ public sealed partial class FlyoutWindow : Window
     private bool _exiting;
     private bool _relayoutQueued;
 
-    internal FlyoutWindow(VolumeViewModel volume, DevicesViewModel devices, AppsViewModel apps)
+    internal FlyoutWindow(DevicesViewModel devices, AppsViewModel apps)
     {
         // Assigned before InitializeComponent: x:Bind reads the properties as
         // the generated bindings are built.
-        ViewModel = volume;
         Devices = devices;
         Apps = apps;
         InitializeComponent();
@@ -47,11 +55,11 @@ public sealed partial class FlyoutWindow : Window
         // For a Window root the XAML compiler wires x:Bind's first evaluation
         // to Activated rather than Loading, so a flyout Windows declines to
         // activate — focus-stealing prevention, a locked session — would come
-        // up empty. Evaluating here is what makes the header independent of
-        // ever getting focus.
+        // up empty. Evaluating here is what makes the two lists independent
+        // of ever getting focus.
         Bindings.Update();
 
-        Title = "awoo";
+        Title = "Awoo";
         _hwnd = WindowNative.GetWindowHandle(this);
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
@@ -80,9 +88,6 @@ public sealed partial class FlyoutWindow : Window
         Apps.Playback.CollectionChanged += (_, _) => QueueRelayout();
         Apps.Recording.CollectionChanged += (_, _) => QueueRelayout();
     }
-
-    /// <summary>The default output device, as the header shows it.</summary>
-    internal VolumeViewModel ViewModel { get; }
 
     /// <summary>Every active endpoint, as the Devices tab lists them.</summary>
     internal DevicesViewModel Devices { get; }
@@ -245,6 +250,26 @@ public sealed partial class FlyoutWindow : Window
         });
     }
 
+    /// <summary>
+    /// Gives the switcher's two items half the flyout's width each.
+    /// SelectorBar stacks its items at the width their own text wants, so
+    /// equal halves are not something the markup can ask for; the control
+    /// itself is stretched, so what it is arranged at is the whole of what
+    /// there is to divide.
+    /// </summary>
+    private void OnTabsSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        var half = args.NewSize.Width / 2;
+
+        if (half <= 0 || half == DevicesTabItem.Width)
+        {
+            return;
+        }
+
+        DevicesTabItem.Width = half;
+        ApplicationsTabItem.Width = half;
+    }
+
     private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
         var showDevices = sender.SelectedItem == DevicesTabItem;
@@ -252,7 +277,42 @@ public sealed partial class FlyoutWindow : Window
         DevicesTab.Visibility = showDevices ? Visibility.Visible : Visibility.Collapsed;
         ApplicationsTab.Visibility = showDevices ? Visibility.Collapsed : Visibility.Visible;
 
+        // Resized here rather than only on the queue: a queued resize leaves
+        // one frame with the tab that was just shown drawn at the other tab's
+        // height, which is the flash. Place measures the content itself, so
+        // the swap and the window's new size land in the same frame.
+        if (AppWindow.IsVisible)
+        {
+            Place();
+        }
+
+        // And again once the rows this tab has just shown have been through a
+        // real layout pass, in case the measurement above was an estimate.
         QueueRelayout();
+    }
+
+    /// <summary>
+    /// Gives a tab's scrollbar room of its own beside the rows, and only while
+    /// the tab has rows enough to scroll — a list that fits keeps the flyout's
+    /// padding even on both sides. A tab's height is pinned to its MaxHeight
+    /// exactly when it is scrollable, so its own resize is when this changes.
+    /// </summary>
+    private void OnTabSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        if (sender is not ScrollViewer tab || tab.Content is not FrameworkElement rows)
+        {
+            return;
+        }
+
+        // Measured against what the rows wanted rather than against
+        // ScrollableHeight, which the ScrollViewer may not have published yet
+        // at the point its own size change is announced.
+        var gutter = rows.DesiredSize.Height > args.NewSize.Height ? ScrollGutterDips : 0;
+
+        if (Math.Abs(tab.Padding.Right - gutter) > 0.5)
+        {
+            tab.Padding = new Thickness(0, 0, gutter, 0);
+        }
     }
 
     /// <summary>

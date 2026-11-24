@@ -11,9 +11,27 @@ namespace Awoo.Settings;
 /// </remarks>
 internal sealed class SettingsService
 {
+    /// <summary>
+    /// The hidden endpoints as something to ask about one id at a time, which
+    /// is how every reader uses them — the list in
+    /// <see cref="AppSettings.HiddenDeviceIds"/> is what gets written.
+    /// </summary>
+    private readonly HashSet<string> _hidden;
+
     private AppSettings _stored;
 
-    internal SettingsService() => _stored = SettingsStore.Load();
+    internal SettingsService()
+    {
+        _stored = SettingsStore.Load();
+        _hidden = new HashSet<string>(_stored.HiddenDeviceIds, AppSettings.DeviceIdComparer);
+    }
+
+    /// <summary>
+    /// Raised when a device has been hidden or shown again. What the flyout's
+    /// two lists listen to: hiding takes effect where the volume control can
+    /// be seen, not at the next start.
+    /// </summary>
+    internal event EventHandler? HiddenDevicesChanged;
 
     /// <summary>
     /// How far one notch of the wheel over the tray icon moves the volume.
@@ -34,6 +52,38 @@ internal sealed class SettingsService
     {
         get => Autostart.IsEnabled;
         set => Autostart.TrySet(value);
+    }
+
+    /// <summary>
+    /// Whether this endpoint has been hidden from the volume control. Says
+    /// nothing about whether it is plugged in, and nothing about the device
+    /// itself: hiding is awoo's own, and Windows goes on using the device.
+    /// </summary>
+    internal bool IsDeviceHidden(string deviceId) => _hidden.Contains(deviceId);
+
+    /// <summary>
+    /// Hides one endpoint from the volume control, or puts it back. Raises
+    /// <see cref="HiddenDevicesChanged"/> only where something moved, so the
+    /// lists are not rebuilt for a toggle set to what it already was.
+    /// </summary>
+    internal void SetDeviceHidden(string deviceId, bool hidden)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId) || hidden == _hidden.Contains(deviceId))
+        {
+            return;
+        }
+
+        if (hidden)
+        {
+            _hidden.Add(deviceId);
+        }
+        else
+        {
+            _hidden.Remove(deviceId);
+        }
+
+        Store(_stored with { HiddenDeviceIds = [.. _hidden] });
+        HiddenDevicesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

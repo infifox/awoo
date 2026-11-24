@@ -38,15 +38,16 @@ internal static class VolumeGlyph
     };
 
     /// <summary>
-    /// What kind of device a row is: a speaker or a microphone, regardless of
-    /// how loud it is. This is the row's device icon rather than its control.
+    /// A kind of device: a speaker or a microphone, regardless of how loud it
+    /// is. This names a device — an application's output, say — rather than
+    /// saying anything about its volume.
     /// </summary>
     internal static string ForKind(DeviceKind kind) =>
         kind == DeviceKind.Output ? Volume3 : Microphone;
 
     /// <summary>
     /// What a row's mute button shows. An output says how loud it is, the way
-    /// the header does; a microphone only has the two states.
+    /// the tray icon does; a microphone only has the two states.
     /// </summary>
     internal static string ForMute(DeviceKind kind, VolumeLevel level) => kind switch
     {

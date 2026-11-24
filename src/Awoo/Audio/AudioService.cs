@@ -18,7 +18,7 @@ namespace Awoo.Audio;
 /// <para>
 /// Every endpoint is held open with its own volume callback registered, so a
 /// change to any device — not only the default one — arrives rather than
-/// being polled for. The header's <see cref="State"/> is then a view of
+/// being polled for. The tray icon's <see cref="State"/> is then a view of
 /// whichever endpoint is the default output, rather than a second
 /// subscription to it.
 /// </para>

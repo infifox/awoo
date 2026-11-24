@@ -78,6 +78,7 @@ internal sealed class TrayIconController : IDisposable
 
         _volume.PropertyChanged += OnVolumeChanged;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
     }
 
     /// <summary>Left click on the icon.</summary>
@@ -114,6 +115,7 @@ internal sealed class TrayIconController : IDisposable
         }
 
         _disposed = true;
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         _volume.PropertyChanged -= OnVolumeChanged;
 
@@ -170,14 +172,28 @@ internal sealed class TrayIconController : IDisposable
             return;
         }
 
-        _dispatch(() =>
-        {
-            if (!_disposed)
-            {
-                DrawIcon();
-            }
-        });
+        Redraw();
     }
+
+    /// <summary>
+    /// The icon is drawn at the size the taskbar's monitor asks for, and a
+    /// scaling change — or the taskbar moving to a monitor scaled otherwise —
+    /// changes that size. Drawn at the old one it would be the shell scaling
+    /// it, which is the blur the size was chosen to avoid.
+    /// </summary>
+    private void OnDisplaySettingsChanged(object? sender, EventArgs args) => Redraw();
+
+    /// <summary>
+    /// Redraws on the UI thread. Windows raises these on threads of its own,
+    /// and the tray icon may only be touched from the one that made it.
+    /// </summary>
+    private void Redraw() => _dispatch(() =>
+    {
+        if (!_disposed)
+        {
+            DrawIcon();
+        }
+    });
 
     private void DrawIcon()
     {
