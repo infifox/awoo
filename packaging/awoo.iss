@@ -14,6 +14,14 @@
   #define AppVersion "0.1.0"
 #endif
 
+; Windows' version resource takes four numbers and nothing else, so a
+; prerelease version keeps its suffix in AppVersion -- which is what the
+; wizard and the filename show -- and drops it here. Pass this whenever
+; AppVersion carries a suffix; a plain x.y.z needs no second define.
+#ifndef AppVersionNumeric
+  #define AppVersionNumeric AppVersion
+#endif
+
 #ifndef PayloadDir
   #define PayloadDir "..\src\Awoo\bin\Release\net10.0-windows10.0.26100.0\win-x64\publish"
 #endif
@@ -37,7 +45,7 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#AppVersionNumeric}
 
 ; Per-user throughout: lowest privileges puts {autopf} under
 ; %LOCALAPPDATA%\Programs and {autoprograms} in the user's own Start Menu, so

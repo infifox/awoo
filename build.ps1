@@ -162,8 +162,13 @@ if ($Package) {
 
     $iscc = Resolve-Iscc
     Write-Host "Compiling the installer with $iscc ..." -ForegroundColor Cyan
+    # Windows' version resource takes digits only, so a prerelease version
+    # keeps its suffix in the name and loses it there.
+    $numeric = ($version -split '-')[0]
+
     & $iscc (Join-Path $root 'packaging\awoo.iss') `
-        "/DAppVersion=$version" "/DPayloadDir=$portable" "/DOutputDir=$dist"
+        "/DAppVersion=$version" "/DAppVersionNumeric=$numeric" `
+        "/DPayloadDir=$portable" "/DOutputDir=$dist"
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup failed with exit code $LASTEXITCODE."
     }
