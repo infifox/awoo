@@ -78,12 +78,12 @@ Left-click the tray icon. awoo is tray-only: no main window, no taskbar
 button.
 
 It opens on two tabs, the way the Plasma applet has them. **Devices** lists
-every active endpoint, outputs then inputs, each with its own slider,
-percentage and mute — microphones exactly like speakers. The marker beside a
-device's name is both which one Windows is using and the way to change it:
-selecting it makes that device the default for all three of Windows' roles
-(playback, multimedia and calls) on the spot. Plugging a device in or pulling
-it out adds or removes its row while the flyout is open.
+every active endpoint it has not been told to hide, outputs then inputs, each
+with its own slider, percentage and mute — microphones exactly like speakers.
+The marker beside a device's name is both which one Windows is using and the
+way to change it: selecting it makes that device the default for all three of
+Windows' roles (playback, multimedia and calls) on the spot. Plugging a device
+in or pulling it out adds or removes its row while the flyout is open.
 
 **Applications** is the same idea one level down: a row for every application
 playing, and under them a row for every application recording, each with its
@@ -105,12 +105,12 @@ Beside a playing application's name is the output its sound goes to, which is
 the Plasma applet's "move this app to another device". The button shows a
 speaker alone while the application follows whichever device is the default,
 and names the device once it has been sent to one of its own; opening it lists
-**Default** and every output to choose from. Windows remembers the choice
-against the application rather than the process, so it holds when the
-application is closed and reopened, and a choice made in Settings shows here
-as the flyout opens — there is no notification for it, so that is when awoo
-looks. Where the device an application was sent to is not there any more, the
-button says so rather than naming nothing.
+**Default** and every output to choose from, bar the ones hidden in settings.
+Windows remembers the choice against the application rather than the process,
+so it holds when the application is closed and reopened, and a choice made in
+Settings shows here as the flyout opens — there is no notification for it, so
+that is when awoo looks. Where the device an application was sent to is not
+there any more, the button says so rather than naming nothing.
 
 Recording rows have no selector: moving an application's microphone is not
 something this version does.
@@ -141,7 +141,7 @@ guess at the position while it is tucked away.
 
 ## Settings
 
-**Settings** on the icon's right-click menu opens a window with the two
+**Settings** on the icon's right-click menu opens a window with the three
 choices awoo has:
 
 - **Volume step** — how far one notch of the wheel moves the volume, 1 to 25
@@ -150,6 +150,14 @@ choices awoo has:
   turned off. It is an entry under the current user's `Run` key, and it is the
   same entry Task Manager's Startup tab lists: turn awoo off there and the
   switch here agrees.
+- **Devices** — a switch for every connected output and input. Turn one off
+  and it leaves the flyout: out of the Devices tab, and out of every
+  application's **Play on** menu. The device itself is untouched — nothing is
+  muted and nothing is disabled, awoo only stops offering it. Whichever
+  device Windows is using stays in the list while it is the default, so the
+  volume you are actually listening to always has a slider; it goes once the
+  default moves elsewhere. A device that is away is not listed, and keeps
+  what it was set to: plug a hidden one back in and it is hidden again.
 
 Settings live in `%LOCALAPPDATA%\awoo\settings.json` and are written as they
 are changed, so there is nothing to save and nothing to lose by quitting.

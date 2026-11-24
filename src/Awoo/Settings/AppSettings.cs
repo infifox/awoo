@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Awoo.Settings;
 
 /// <summary>
@@ -21,6 +23,17 @@ internal sealed record AppSettings
     internal const int MaxVolumeStep = 25;
 
     /// <summary>
+    /// How endpoint ids are compared, here and wherever else awoo matches
+    /// one: Core Audio hands the same id back in the same form every time,
+    /// but this file is the user's to edit and a hand-typed id should still
+    /// match the device it names.
+    /// </summary>
+    internal static readonly StringComparer DeviceIdComparer = StringComparer.OrdinalIgnoreCase;
+
+    /// <summary>Null where the file said nothing; see <see cref="HiddenDeviceIds"/>.</summary>
+    private readonly IReadOnlyList<string>? _hiddenDeviceIds;
+
+    /// <summary>
     /// How far one notch of the wheel over the tray icon moves the volume, in
     /// percentage points.
     /// </summary>
@@ -35,11 +48,82 @@ internal sealed record AppSettings
     public bool AutostartRegistered { get; init; }
 
     /// <summary>
+    /// The endpoints the user has hidden from the volume control, by Core
+    /// Audio endpoint id — stable across unplugging and replugging, so a
+    /// device that is away keeps its flag and comes back hidden.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read through <see cref="DeviceIdListConverter"/>, which keeps whatever
+    /// of a hand-edited list is a string and drops the rest. The ids
+    /// themselves are not checked against anything: a device does not have to
+    /// be plugged in to be hidden, so an id awoo has never seen is a device
+    /// that is simply not here.
+    /// </para>
+    /// <para>
+    /// Behind a field with a getter that never answers null, because the
+    /// generated deserializer does not run this type's initializers: a file
+    /// with no <c>hiddenDeviceIds</c> in it — every file awoo wrote before
+    /// this setting existed — leaves the property at its default, which for
+    /// a list is nothing at all.
+    /// </para>
+    /// </remarks>
+    [JsonConverter(typeof(DeviceIdListConverter))]
+    public IReadOnlyList<string> HiddenDeviceIds
+    {
+        get => _hiddenDeviceIds ?? [];
+        init => _hiddenDeviceIds = value;
+    }
+
+    /// <summary>
     /// The same settings with anything out of range brought back into it. The
     /// file is the user's to edit, and an edit does not have to be sensible.
     /// </summary>
-    internal AppSettings Normalised() =>
-        VolumeStep is >= MinVolumeStep and <= MaxVolumeStep
+    internal AppSettings Normalised()
+    {
+        var step = Math.Clamp(VolumeStep, MinVolumeStep, MaxVolumeStep);
+        var hidden = NormalisedHiddenIds();
+
+        return step == VolumeStep && hidden is null
             ? this
-            : this with { VolumeStep = Math.Clamp(VolumeStep, MinVolumeStep, MaxVolumeStep) };
+            : this with { VolumeStep = step, HiddenDeviceIds = hidden ?? HiddenDeviceIds };
+    }
+
+    /// <summary>
+    /// Equality over the values rather than over the list's identity, which
+    /// is what <see cref="SettingsService"/> needs to tell a change from a
+    /// write for nothing: a record's generated comparison would call two
+    /// equal lists different for being two objects.
+    /// </summary>
+    public bool Equals(AppSettings? other) =>
+        other is not null &&
+        VolumeStep == other.VolumeStep &&
+        AutostartRegistered == other.AutostartRegistered &&
+        HiddenDeviceIds.SequenceEqual(other.HiddenDeviceIds, DeviceIdComparer);
+
+    public override int GetHashCode() =>
+        HashCode.Combine(VolumeStep, AutostartRegistered, HiddenDeviceIds.Count);
+
+    /// <summary>
+    /// The hidden list with the entries that name nothing taken out and the
+    /// repeats collapsed, or null where it was already like that — the file
+    /// is the user's to edit, and a blank or a duplicate id is not a device.
+    /// </summary>
+    private IReadOnlyList<string>? NormalisedHiddenIds()
+    {
+        var kept = new List<string>(HiddenDeviceIds.Count);
+        var seen = new HashSet<string>(DeviceIdComparer);
+
+        foreach (var id in HiddenDeviceIds)
+        {
+            if (!string.IsNullOrWhiteSpace(id) && seen.Add(id.Trim()))
+            {
+                kept.Add(id.Trim());
+            }
+        }
+
+        return kept.Count == HiddenDeviceIds.Count && kept.SequenceEqual(HiddenDeviceIds)
+            ? null
+            : kept;
+    }
 }

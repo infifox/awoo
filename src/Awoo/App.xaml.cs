@@ -67,8 +67,8 @@ public partial class App : Application
 
         _audio = new AudioService(dispatch);
         var volume = new VolumeViewModel(_audio);
-        var devices = new DevicesViewModel(_audio);
-        var apps = new AppsViewModel(_audio);
+        var devices = new DevicesViewModel(_audio, _settings);
+        var apps = new AppsViewModel(_audio, _settings);
 
         _flyout = new FlyoutWindow(devices, apps);
 
@@ -85,14 +85,14 @@ public partial class App : Application
     /// </summary>
     private void ShowSettings()
     {
-        if (_settings is null)
+        if (_settings is null || _audio is null)
         {
             return;
         }
 
         if (_settingsWindow is null)
         {
-            var window = new SettingsWindow(_settings);
+            var window = new SettingsWindow(_settings, _audio);
             window.Closed += (_, _) => _settingsWindow = null;
             _settingsWindow = window;
         }

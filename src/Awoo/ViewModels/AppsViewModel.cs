@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Awoo.Audio;
+using Awoo.Settings;
 
 namespace Awoo.ViewModels;
 
@@ -20,6 +21,7 @@ namespace Awoo.ViewModels;
 public sealed class AppsViewModel : INotifyPropertyChanged
 {
     private readonly IAudioService _audio;
+    private readonly SettingsService _settings;
 
     /// <summary>
     /// The devices a row could be sent to. Held here and pushed down into the
@@ -29,13 +31,15 @@ public sealed class AppsViewModel : INotifyPropertyChanged
     /// </summary>
     private IReadOnlyList<AudioDeviceState> _outputs;
 
-    internal AppsViewModel(IAudioService audio)
+    internal AppsViewModel(IAudioService audio, SettingsService settings)
     {
         _audio = audio;
+        _settings = settings;
         _outputs = OutputsOf(audio.Devices);
         Apply(audio.Apps);
         _audio.AppsChanged += OnAppsChanged;
         _audio.DevicesChanged += OnDevicesChanged;
+        _settings.HiddenDevicesChanged += OnHiddenDevicesChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -70,6 +74,19 @@ public sealed class AppsViewModel : INotifyPropertyChanged
     {
         _outputs = OutputsOf(devices);
 
+        foreach (var row in Playback.Concat(Recording))
+        {
+            row.UpdateDevices(_outputs);
+        }
+    }
+
+    /// <summary>
+    /// A device hidden or shown again in the settings window. The outputs are
+    /// the same as before; which of them a row will offer is not, so every
+    /// menu is built again over the same list.
+    /// </summary>
+    private void OnHiddenDevicesChanged(object? sender, EventArgs args)
+    {
         foreach (var row in Playback.Concat(Recording))
         {
             row.UpdateDevices(_outputs);
@@ -123,7 +140,7 @@ public sealed class AppsViewModel : INotifyPropertyChanged
 
             if (found < 0)
             {
-                rows.Insert(index, new AppRowViewModel(_audio, state, _outputs));
+                rows.Insert(index, new AppRowViewModel(_audio, _settings, state, _outputs));
                 continue;
             }
 
