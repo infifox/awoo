@@ -2,8 +2,9 @@ name: Build
 
 # awoo is a Windows 11 app, so everything here runs on Windows. Every push and
 # pull request builds it and produces the two artifacts people actually
-# download, which is what keeps the release path from being first exercised on
-# the day of a release. Publishing a release is release.yml's job.
+# download -- through the same .github/actions/package recipe the release
+# workflow uses, which is what keeps the release path from being first
+# exercised on the day of a release. Publishing a release is release.yml's job.
 on:
   push:
     branches: ['**']
@@ -22,15 +23,8 @@ jobs:
     name: Build and package
     runs-on: windows-latest
 
-    env:
-      INNO_SETUP_VERSION: '6.7.3'
-
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
 
       - name: Work out the version
         id: version
@@ -48,60 +42,11 @@ jobs:
           "numeric=$numeric"  | Out-File $env:GITHUB_OUTPUT -Append
           Write-Host "Version $version (file version $numeric)"
 
-      - name: Build
-        run: dotnet build src/Awoo/Awoo.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
-
-      # Self-contained, so the portable build and the installer both run on a
-      # machine with no .NET runtime and no Windows App Runtime of their own.
-      - name: Publish the portable build
-        run: >
-          dotnet publish src/Awoo/Awoo.csproj -c Release
-          -p:SelfContained=true
-          -p:Version=${{ steps.version.outputs.version }}
-          -p:PublishDir=${{ github.workspace }}/artifacts/portable/
-
-      - name: Zip the portable build
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts/dist | Out-Null
-          $zip = "artifacts/dist/awoo-${{ steps.version.outputs.version }}-portable-win-x64.zip"
-          Compress-Archive -Path artifacts/portable/* -DestinationPath $zip -CompressionLevel Optimal
-          "{0} -- {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB)
-
-      # Inno Setup ships its command-line compiler as a NuGet package, which
-      # pins the version rather than taking whatever the runner image happens
-      # to carry -- and needs no installer and no admin rights.
-      - name: Fetch Inno Setup ${{ env.INNO_SETUP_VERSION }}
-        shell: pwsh
-        run: |
-          $v = $env:INNO_SETUP_VERSION
-          $url = "https://api.nuget.org/v3-flatcontainer/tools.innosetup/$v/tools.innosetup.$v.nupkg"
-          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP/innosetup.zip" -UseBasicParsing
-          Expand-Archive -Path "$env:RUNNER_TEMP/innosetup.zip" -DestinationPath "$env:RUNNER_TEMP/innosetup"
-          $iscc = "$env:RUNNER_TEMP/innosetup/tools/ISCC.exe"
-          if (-not (Test-Path $iscc)) { throw "No ISCC.exe in Tools.InnoSetup $v." }
-          "ISCC=$iscc" | Out-File $env:GITHUB_ENV -Append
-
-      - name: Compile the installer
-        shell: pwsh
-        run: |
-          & $env:ISCC packaging/awoo.iss `
-            "/DAppVersion=${{ steps.version.outputs.version }}" `
-            "/DAppVersionNumeric=${{ steps.version.outputs.numeric }}" `
-            "/DPayloadDir=${{ github.workspace }}\artifacts\portable" `
-            "/DOutputDir=${{ github.workspace }}\artifacts\dist"
-          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
-
-      - name: Check both artifacts are there
-        shell: pwsh
-        run: |
-          $expected = @(
-            "artifacts/dist/awoo-${{ steps.version.outputs.version }}-portable-win-x64.zip",
-            "artifacts/dist/awoo-${{ steps.version.outputs.version }}-setup.exe"
-          )
-          $missing = $expected | Where-Object { -not (Test-Path $_) }
-          if ($missing) { throw "Not produced: $($missing -join ', ')" }
-          Get-ChildItem artifacts/dist | ForEach-Object { "{0,8:N1} MB  {1}" -f ($_.Length/1MB), $_.Name }
+      - name: Build and package
+        uses: ./.github/actions/package
+        with:
+          version: ${{ steps.version.outputs.version }}
+          numeric: ${{ steps.version.outputs.numeric }}
 
       - uses: actions/upload-artifact@v4
         with:

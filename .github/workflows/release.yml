@@ -32,7 +32,6 @@ jobs:
       contents: write
 
     env:
-      INNO_SETUP_VERSION: '6.7.3'
       VERSION: ${{ inputs.version }}
 
     steps:
@@ -98,64 +97,13 @@ jobs:
           [System.IO.File]::WriteAllText($path, $updated, (New-Object System.Text.UTF8Encoding $false))
           Write-Host (Select-String -Path $path -Pattern '<Version>').Line.Trim()
 
-      - uses: actions/setup-dotnet@v4
+      # The same recipe every push already runs, so a release is built exactly
+      # the way CI verified the branch.
+      - name: Build and package
+        uses: ./.github/actions/package
         with:
-          dotnet-version: '10.0.x'
-
-      - name: Build
-        run: dotnet build src/Awoo/Awoo.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
-
-      # Self-contained, so the portable build and the installer both run on a
-      # machine with no .NET runtime and no Windows App Runtime of their own.
-      - name: Publish the portable build
-        run: >
-          dotnet publish src/Awoo/Awoo.csproj -c Release
-          -p:SelfContained=true
-          -p:Version=${{ steps.version.outputs.version }}
-          -p:PublishDir=${{ github.workspace }}/artifacts/portable/
-
-      - name: Zip the portable build
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts/dist | Out-Null
-          $zip = "artifacts/dist/awoo-${{ steps.version.outputs.version }}-portable-win-x64.zip"
-          Compress-Archive -Path artifacts/portable/* -DestinationPath $zip -CompressionLevel Optimal
-          "{0} -- {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB)
-
-      # Inno Setup ships its command-line compiler as a NuGet package, which
-      # pins the version rather than taking whatever the runner image happens
-      # to carry -- and needs no installer and no admin rights.
-      - name: Fetch Inno Setup ${{ env.INNO_SETUP_VERSION }}
-        shell: pwsh
-        run: |
-          $v = $env:INNO_SETUP_VERSION
-          $url = "https://api.nuget.org/v3-flatcontainer/tools.innosetup/$v/tools.innosetup.$v.nupkg"
-          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP/innosetup.zip" -UseBasicParsing
-          Expand-Archive -Path "$env:RUNNER_TEMP/innosetup.zip" -DestinationPath "$env:RUNNER_TEMP/innosetup"
-          $iscc = "$env:RUNNER_TEMP/innosetup/tools/ISCC.exe"
-          if (-not (Test-Path $iscc)) { throw "No ISCC.exe in Tools.InnoSetup $v." }
-          "ISCC=$iscc" | Out-File $env:GITHUB_ENV -Append
-
-      - name: Compile the installer
-        shell: pwsh
-        run: |
-          & $env:ISCC packaging/awoo.iss `
-            "/DAppVersion=${{ steps.version.outputs.version }}" `
-            "/DAppVersionNumeric=${{ steps.version.outputs.numeric }}" `
-            "/DPayloadDir=${{ github.workspace }}\artifacts\portable" `
-            "/DOutputDir=${{ github.workspace }}\artifacts\dist"
-          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
-
-      - name: Check both artifacts are there
-        shell: pwsh
-        run: |
-          $expected = @(
-            "artifacts/dist/awoo-${{ steps.version.outputs.version }}-portable-win-x64.zip",
-            "artifacts/dist/awoo-${{ steps.version.outputs.version }}-setup.exe"
-          )
-          $missing = $expected | Where-Object { -not (Test-Path $_) }
-          if ($missing) { throw "Not produced: $($missing -join ', ')" }
-          Get-ChildItem artifacts/dist | ForEach-Object { "{0,8:N1} MB  {1}" -f ($_.Length/1MB), $_.Name }
+          version: ${{ steps.version.outputs.version }}
+          numeric: ${{ steps.version.outputs.numeric }}
 
       # The build is green and the artifacts are on disk, so the commit and
       # the tag go out now rather than earlier: a failed build leaves the
