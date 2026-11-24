@@ -4,8 +4,8 @@ using Awoo.Audio;
 namespace Awoo.ViewModels;
 
 /// <summary>
-/// One audio endpoint as a row in the Devices tab: its name and kind, its
-/// volume and mute, and whether it is the default for its kind.
+/// One audio endpoint as a row in the Devices tab: its name, its volume and
+/// mute, and whether it is the default for its kind.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,7 +31,6 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         // The radio group is per kind: an output and an input are each the
         // default of their own list, so they must not unselect each other.
         GroupName = $"awoo.default.{state.Kind}";
-        DeviceGlyph = VolumeGlyph.ForKind(state.Kind);
         CanSetDefault = audio.CanSetDefaultDevice;
     }
 
@@ -44,9 +43,6 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
 
     /// <summary>Which radio group this row's default marker belongs to.</summary>
     public string GroupName { get; }
-
-    /// <summary>A speaker or a microphone: what kind of device this row is.</summary>
-    public string DeviceGlyph { get; }
 
     /// <summary>
     /// False where this build of Windows would not give up the policy-config

@@ -38,8 +38,9 @@ internal static class VolumeGlyph
     };
 
     /// <summary>
-    /// What kind of device a row is: a speaker or a microphone, regardless of
-    /// how loud it is. This is the row's device icon rather than its control.
+    /// A kind of device: a speaker or a microphone, regardless of how loud it
+    /// is. This names a device — an application's output, say — rather than
+    /// saying anything about its volume.
     /// </summary>
     internal static string ForKind(DeviceKind kind) =>
         kind == DeviceKind.Output ? Volume3 : Microphone;

@@ -19,6 +19,25 @@
                  what squares the foot up against the rest. -->
             <Thickness x:Key="FlyoutPadding">12</Thickness>
 
+            <!-- The mute buttons take the Windows volume flyout's manners:
+                 nothing at rest, a wash under the pointer, and no accent when
+                 they are on — a muted row says so with its glyph alone. These
+                 are the stock ToggleButton brushes narrowed to this window,
+                 where every ToggleButton is a mute button; the colours are the
+                 theme's own, which is what keeps light and dark both right. -->
+            <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="Transparent" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="{ThemeResource SubtleFillColorSecondary}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="{ThemeResource SubtleFillColorSecondary}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="{ThemeResource SubtleFillColorTertiary}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="{ThemeResource SubtleFillColorTertiary}" />
+
+            <!-- The checked states' foreground is white-on-accent in stock
+                 Fluent, and there is no accent here any more. -->
+            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{ThemeResource TextFillColorPrimary}" />
+            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{ThemeResource TextFillColorPrimary}" />
+            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="{ThemeResource TextFillColorSecondary}" />
+
             <!-- One device: the default marker and its name on top, its
                  volume underneath. Shared by the outputs and the inputs,
                  which the Plasma applet treats alike. -->
@@ -44,31 +63,20 @@
                         Checked="{x:Bind MakeDefault}"
                         ToolTipService.ToolTip="{x:Bind DefaultToolTip, Mode=OneWay}"
                         AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
-                        <Grid ColumnSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <FontIcon
-                                FontSize="14"
-                                VerticalAlignment="Center"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Glyph="{x:Bind DeviceGlyph}" />
-
-                            <TextBlock
-                                Grid.Column="1"
-                                VerticalAlignment="Center"
-                                Text="{x:Bind Name, Mode=OneWay}"
-                                TextTrimming="CharacterEllipsis"
-                                TextWrapping="NoWrap"
-                                MaxLines="1" />
-                        </Grid>
+                        <!-- The name alone: which kind of device this is, the
+                             Outputs and Inputs headings already say. -->
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Text="{x:Bind Name, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            MaxLines="1" />
                     </RadioButton>
 
-                    <!-- Indented to sit under the name rather than under the
-                         radio button, so the column of markers reads cleanly. -->
-                    <Grid Grid.Row="1" Margin="30,0,0,0" ColumnSpacing="10" Height="32">
+                    <!-- Flush left, so the mute button's edge lines up with
+                         the radio button above it rather than with the name,
+                         the way the Windows volume flyout stacks them. -->
+                    <Grid Grid.Row="1" ColumnSpacing="10" Height="32">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -79,6 +87,7 @@
                             Width="36"
                             Height="32"
                             Padding="0"
+                            BorderThickness="0"
                             IsChecked="{x:Bind IsMuted, Mode=TwoWay}"
                             ToolTipService.ToolTip="{x:Bind MuteToolTip, Mode=OneWay}"
                             AutomationProperties.Name="Mute">
@@ -243,9 +252,9 @@
                         </DropDownButton>
                     </Grid>
 
-                    <!-- Indented to sit under the name, the way a device
-                         row's controls do. -->
-                    <Grid Grid.Row="1" Margin="32,0,0,0" ColumnSpacing="10" Height="32">
+                    <!-- Lined up with the icon above it, the way a device
+                         row's controls line up with its radio button. -->
+                    <Grid Grid.Row="1" Margin="8,0,0,0" ColumnSpacing="10" Height="32">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -256,6 +265,7 @@
                             Width="36"
                             Height="32"
                             Padding="0"
+                            BorderThickness="0"
                             IsChecked="{x:Bind IsMuted, Mode=TwoWay}"
                             ToolTipService.ToolTip="{x:Bind MuteToolTip, Mode=OneWay}"
                             AutomationProperties.Name="Mute">
@@ -322,12 +332,15 @@
             </SelectorBar>
 
             <Grid Grid.Row="1">
+                <!-- SizeChanged is where the scrollbar's gutter is opened and
+                     closed; see OnTabSizeChanged. -->
                 <ScrollViewer
                     x:Name="DevicesTab"
                     MaxHeight="420"
                     HorizontalScrollMode="Disabled"
                     HorizontalScrollBarVisibility="Disabled"
-                    VerticalScrollBarVisibility="Auto">
+                    VerticalScrollBarVisibility="Auto"
+                    SizeChanged="OnTabSizeChanged">
                     <StackPanel Spacing="4">
                         <TextBlock
                             Text="Outputs"
@@ -370,7 +383,8 @@
                     MaxHeight="420"
                     HorizontalScrollMode="Disabled"
                     HorizontalScrollBarVisibility="Disabled"
-                    VerticalScrollBarVisibility="Auto">
+                    VerticalScrollBarVisibility="Auto"
+                    SizeChanged="OnTabSizeChanged">
                     <StackPanel Spacing="4">
                         <TextBlock
                             Text="Playing"
@@ -399,9 +413,13 @@
                             </ItemsRepeater.Layout>
                         </ItemsRepeater>
 
+                        <!-- Centred and understated: nothing playing is the
+                             quiet case rather than something to announce. -->
                         <TextBlock
                             Text="No applications are playing or recording audio"
                             Margin="0,4,0,4"
+                            HorizontalAlignment="Center"
+                            TextAlignment="Center"
                             Style="{ThemeResource BodyTextBlockStyle}"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             TextWrapping="Wrap"
