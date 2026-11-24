@@ -6,8 +6,9 @@ KDE Plasma 6.4 volume applet does — in native Fluent clothing.
 Early days. The tray icon and its flyout are standing: the header drives the
 default output device for real, the Devices tab lists every output and input
 with its own volume, mute and one-click set-as-default, and the Applications
-tab gives everything playing or recording a slider of its own. Per-app device
-routing comes next.
+tab gives everything playing or recording a slider of its own and a way to
+send it to a different output. Tray gestures, settings and autostart come
+next.
 
 ## Building
 
@@ -53,10 +54,34 @@ the Plasma applet's is rather than the way the Windows mixer's is: start
 something and its row appears, stop it and the row goes a moment later. When
 nothing at all is making or taking sound, the tab says so.
 
-Switching the default device goes through `IPolicyConfig`, which Windows does
-not document — the same route EarTrumpet and SoundSwitch take. Where a build
-of Windows will not hand it over, the markers stay as read-only indicators of
-which device is in use and nothing else in awoo is affected.
+Beside a playing application's name is the output its sound goes to, which is
+the Plasma applet's "move this app to another device" and the same thing
+Windows buries in Settings → System → Sound → *App volume and device
+preferences*. The button shows a speaker alone while the application follows
+whichever device is the default, and names the device once it has been sent to
+one of its own; opening it lists **Default** and every output to choose from.
+Windows remembers the choice against the application rather than the process,
+so it holds when the application is closed and reopened, and a choice made in
+Settings shows here as the flyout opens — there is no notification for it, so
+that is when awoo looks. Where the device an application was sent to is not
+there any more, the button says so rather than naming nothing.
+
+Recording rows have no selector: moving an application's microphone is not
+something this version does.
+
+Switching the default device goes through `IPolicyConfig`, and sending one
+application's sound to a device goes through `IAudioPolicyConfig` — neither of
+which Windows documents, and both the route EarTrumpet and SoundSwitch take.
+Where a build of Windows will not hand one over, that much of awoo goes quiet
+and nothing else is affected: the default markers stay as read-only
+indicators of which device is in use, and the per-application selector is not
+shown at all rather than offering a control that would do nothing.
+
+Two things Windows itself decides, and awoo reports rather than argues with: a
+device has to exist to be sent sound, and an application has to be making
+sound to be moved. So an application whose chosen device has since been
+unplugged keeps its route and says the device is unavailable, and a selector
+that Windows declines snaps back to where the sound is actually going.
 
 Windows 11 files a newly registered tray icon under *Show hidden icons*. Drag
 awoo out of there to keep it on the taskbar.

@@ -29,7 +29,12 @@ internal readonly record struct SessionIdentity(string Key, string Name, string?
     /// enumerated and this running — so each step has a fallback rather than
     /// throwing.
     /// </summary>
-    internal static SessionIdentity For(IAudioSessionControl2 control, SessionKind kind)
+    /// <param name="processId">
+    /// The session's owning process, which the caller has already read — it
+    /// needs it for routing as well, and asking twice would be asking the
+    /// same dying process twice.
+    /// </param>
+    internal static SessionIdentity For(IAudioSessionControl2 control, SessionKind kind, int processId)
     {
         if (control.IsSystemSoundsSession() == CoreAudio.S_OK)
         {
@@ -37,7 +42,6 @@ internal readonly record struct SessionIdentity(string Key, string Name, string?
             return new SessionIdentity($"{kind}|@system", "System sounds", IconFileOf(control), true);
         }
 
-        _ = control.GetProcessId(out var processId);
         var executable = ProcessPath(processId);
 
         var key = executable is null

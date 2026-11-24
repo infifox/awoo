@@ -32,6 +32,7 @@ internal sealed class AudioService : IAudioService
     private readonly Action<Action> _dispatch;
     private readonly IMMDeviceEnumerator _enumerator;
     private readonly IPolicyConfig? _policyConfig;
+    private readonly AppRouting _routing;
     private readonly DeviceNotifications _deviceNotifications;
     private readonly AudioSessionIndex _sessions;
 
@@ -54,16 +55,17 @@ internal sealed class AudioService : IAudioService
         _dispatch = dispatch;
         _enumerator = CoreAudio.CreateEnumerator();
 
-        // Undocumented, so its absence is a capability we go without rather
-        // than a failure to start.
+        // Both undocumented, so their absence is a capability awoo goes
+        // without rather than a failure to start.
         _policyConfig = CoreAudio.CreatePolicyConfig();
+        _routing = AppRouting.Create();
 
         _deviceNotifications = new DeviceNotifications(this);
         _ = _enumerator.RegisterEndpointNotificationCallback(_deviceNotifications);
 
         // Sessions hang off endpoints, so the index has to exist before the
         // first Refresh opens any.
-        _sessions = new AudioSessionIndex(dispatch);
+        _sessions = new AudioSessionIndex(dispatch, _routing);
         _sessions.AppsChanged += (_, apps) => AppsChanged?.Invoke(this, apps);
 
         State = VolumeState.NoDevice;
@@ -120,6 +122,10 @@ internal sealed class AudioService : IAudioService
     public void SetAppPercent(string appId, int percent) => _sessions.SetPercent(appId, percent);
 
     public void SetAppMute(string appId, bool muted) => _sessions.SetMute(appId, muted);
+
+    public void SetAppDevice(string appId, string? deviceId) => _sessions.SetDevice(appId, deviceId);
+
+    public void RefreshAppRoutes() => _sessions.RefreshRoutes();
 
     public void SetDefaultDevice(string deviceId)
     {

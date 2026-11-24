@@ -104,11 +104,33 @@
                 </Grid>
             </DataTemplate>
 
-            <!-- One application: its icon and name on top, its own volume
-                 underneath. Shared by what is playing and what is
-                 recording, which the Plasma applet treats alike. The top
-                 line is a two-column grid so task 05's device selector has
-                 somewhere to go. -->
+            <!-- One device an application's sound could be sent to. The same
+                 shape as a device row's default marker, because it is the
+                 same question one level down: which device, of these. -->
+            <DataTemplate x:Key="RouteOptionTemplate" x:DataType="vm:RouteOptionViewModel">
+                <RadioButton
+                    GroupName="{x:Bind GroupName}"
+                    MinWidth="0"
+                    Margin="0"
+                    Padding="8,0,0,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                    Checked="{x:Bind Choose}"
+                    AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Text="{x:Bind Name, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="NoWrap"
+                        MaxLines="1" />
+                </RadioButton>
+            </DataTemplate>
+
+            <!-- One application: its icon, name and output device on top, its
+                 own volume underneath. Shared by what is playing and what is
+                 recording, which the Plasma applet treats alike — only a
+                 playing row carries the device selector. -->
             <DataTemplate x:Key="AppRowTemplate" x:DataType="vm:AppRowViewModel">
                 <Grid RowSpacing="2">
                     <Grid.RowDefinitions>
@@ -120,6 +142,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <!-- The app's own icon where there is one, and the
@@ -143,6 +166,76 @@
                             TextTrimming="CharacterEllipsis"
                             TextWrapping="NoWrap"
                             MaxLines="1" />
+
+                        <!-- Where this application's sound goes. Hidden
+                             outright where Windows would not give up the
+                             routing interface, rather than offering a
+                             control that would silently do nothing. The
+                             device's name shows only when the application
+                             has been sent somewhere of its own; following
+                             the default is the quiet, common case. -->
+                        <DropDownButton
+                            Grid.Column="2"
+                            Height="28"
+                            MaxWidth="150"
+                            Padding="8,0,6,0"
+                            VerticalAlignment="Center"
+                            Visibility="{x:Bind CanRoute, Mode=OneWay}"
+                            ToolTipService.ToolTip="{x:Bind RouteToolTip, Mode=OneWay}"
+                            AutomationProperties.Name="Output device">
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <FontIcon
+                                    FontSize="14"
+                                    VerticalAlignment="Center"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Glyph="{x:Bind RouteGlyph}" />
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Text="{x:Bind RouteName, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap"
+                                    MaxLines="1"
+                                    Visibility="{x:Bind HasRoute, Mode=OneWay}" />
+                            </Grid>
+
+                            <DropDownButton.Flyout>
+                                <!-- Constrained to the flyout window, which
+                                     is what keeps it a popup inside our own
+                                     XAML root: a windowed popup would take
+                                     the foreground and the flyout dismisses
+                                     when it loses it. -->
+                                <Flyout Placement="Bottom" ShouldConstrainToRootBounds="True">
+                                    <StackPanel MinWidth="200" Spacing="4">
+                                        <TextBlock
+                                            Text="Play on"
+                                            Style="{ThemeResource CaptionTextBlockStyle}"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                                        <ScrollViewer
+                                            MaxHeight="260"
+                                            HorizontalScrollMode="Disabled"
+                                            HorizontalScrollBarVisibility="Disabled"
+                                            VerticalScrollBarVisibility="Auto">
+                                            <ItemsRepeater
+                                                ItemsSource="{x:Bind RouteOptions, Mode=OneWay}"
+                                                ItemTemplate="{StaticResource RouteOptionTemplate}">
+                                                <ItemsRepeater.Layout>
+                                                    <StackLayout Spacing="2" />
+                                                </ItemsRepeater.Layout>
+                                            </ItemsRepeater>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Flyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                     </Grid>
 
                     <!-- Indented to sit under the name, the way a device

@@ -45,6 +45,9 @@ internal sealed class AudioSessionIndex : IDisposable
 
     private readonly Action<Action> _dispatch;
 
+    /// <summary>Where each application's sound is sent, and how to send it elsewhere.</summary>
+    private readonly AppRouting _routing;
+
     /// <summary>Re-publishes when the oldest lingering row's time is up.</summary>
     private readonly Timer _settle;
 
@@ -59,9 +62,10 @@ internal sealed class AudioSessionIndex : IDisposable
 
     private bool _disposed;
 
-    internal AudioSessionIndex(Action<Action> dispatch)
+    internal AudioSessionIndex(Action<Action> dispatch, AppRouting routing)
     {
         _dispatch = dispatch;
+        _routing = routing;
         Apps = [];
 
         // Idle until Publish has a linger to wait out, and firing onto the
@@ -177,6 +181,66 @@ internal sealed class AudioSessionIndex : IDisposable
         Publish();
     }
 
+    /// <summary>
+    /// Sends one application's sound to one endpoint, or back to following
+    /// the default device when <paramref name="deviceId"/> is null.
+    /// </summary>
+    /// <remarks>
+    /// Every process the row stands for is routed, once each: Windows
+    /// resolves a process to the application behind it, so routing one
+    /// process of a browser would be enough — but a row can group programs
+    /// that only share an executable path, and routing each is what makes
+    /// the row mean what it says. Unknown ids are ignored.
+    /// </remarks>
+    internal void SetDevice(string appId, string? deviceId)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var streams = StreamsOf(appId);
+        var routed = new HashSet<int>();
+
+        foreach (var session in streams)
+        {
+            if (session.CanRoute && routed.Add(session.ProcessId))
+            {
+                _ = _routing.SetRoute(session.ProcessId, session.Kind, deviceId);
+            }
+        }
+
+        // Read back rather than assume: what Windows persisted is the truth,
+        // and a write it declined has to show as the row snapping back.
+        foreach (var session in streams)
+        {
+            ReadRoute(session);
+        }
+
+        Publish();
+    }
+
+    /// <summary>
+    /// Re-reads where every application's sound is going. Nothing reports a
+    /// route changing — not awoo's own write and not the one Windows'
+    /// Settings page makes — so this is how the Applications tab is brought
+    /// up to date, which the flyout does as it opens.
+    /// </summary>
+    internal void RefreshRoutes()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var session in _sessions.Values)
+        {
+            ReadRoute(session);
+        }
+
+        Publish();
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -240,6 +304,12 @@ internal sealed class AudioSessionIndex : IDisposable
             return;
         }
 
+        // A session spanning several processes answers with a success code
+        // other than S_OK and the first of them, which is as good a process
+        // to route by as any — so what matters is the id, not the code.
+        _ = identified.GetProcessId(out var processId);
+        var identity = SessionIdentity.For(identified, source.Kind, processId);
+
         var session = new Session(
             this,
             identified,
@@ -247,9 +317,15 @@ internal sealed class AudioSessionIndex : IDisposable
             instanceId,
             source.EndpointId,
             source.Kind,
-            SessionIdentity.For(identified, source.Kind));
+            processId,
+            // Offered for what is playing only. Windows will route a
+            // recording stream too, but awoo puts no selector on a recording
+            // row, and a capability nothing offers should not read as one.
+            source.Kind == SessionKind.Playback && _routing.CanRoute(processId, identity.IsSystemSounds),
+            identity);
 
         Read(session);
+        ReadRoute(session);
         _sessions[instanceId] = session;
         _ = identified.RegisterAudioSessionNotification(session);
     }
@@ -295,6 +371,17 @@ internal sealed class AudioSessionIndex : IDisposable
             session.IsMuted = muted;
         }
     }
+
+    /// <summary>
+    /// Re-reads where one session's sound is going. A session awoo cannot
+    /// route has no route to read: Windows answers for a process it knows
+    /// nothing about with an error rather than with "none", and that is not
+    /// a thing to go asking about on every publish.
+    /// </summary>
+    private void ReadRoute(Session session) =>
+        session.RoutedDeviceId = session.CanRoute
+            ? _routing.RouteOf(session.ProcessId, session.Kind)
+            : null;
 
     /// <summary>
     /// Moves a session to a new state, noting the moment it stopped playing
@@ -358,7 +445,13 @@ internal sealed class AudioSessionIndex : IDisposable
                 // Muted only when nothing can be heard: one unmuted stream
                 // makes the app audible, so the button has to offer Mute.
                 streams.All(session => session.IsMuted),
-                streams[0].Identity.IsSystemSounds))
+                streams[0].Identity.IsSystemSounds,
+                // One row, one route, taken from the same stream the name and
+                // the icon come from. Windows keeps a route per application,
+                // so several streams of one program agree in practice; where
+                // they would not, the row has to say one thing.
+                streams[0].RoutedDeviceId,
+                streams.Any(session => session.CanRoute)))
             .OrderBy(app => app.Kind)
             .ThenBy(app => app.IsSystemSounds)
             .ThenBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -439,7 +532,7 @@ internal sealed class AudioSessionIndex : IDisposable
             return;
         }
 
-        session.Identity = SessionIdentity.For(session.Control, session.Kind);
+        session.Identity = SessionIdentity.For(session.Control, session.Kind, session.ProcessId);
         Publish();
     }
 
@@ -501,6 +594,8 @@ internal sealed class AudioSessionIndex : IDisposable
         string instanceId,
         string endpointId,
         SessionKind kind,
+        int processId,
+        bool canRoute,
         SessionIdentity identity) : IAudioSessionEvents
     {
         internal IAudioSessionControl2 Control { get; } = control;
@@ -514,6 +609,25 @@ internal sealed class AudioSessionIndex : IDisposable
         internal string EndpointId { get; } = endpointId;
 
         internal SessionKind Kind { get; } = kind;
+
+        /// <summary>
+        /// The process this stream belongs to, which is what the routing
+        /// interface is asked about. Zero where Core Audio would not say.
+        /// </summary>
+        internal int ProcessId { get; } = processId;
+
+        /// <summary>
+        /// Whether this stream is one awoo can offer to move. Settled once,
+        /// at construction: nothing about it — the interface being there, the
+        /// process, the flow — changes over a stream's life.
+        /// </summary>
+        internal bool CanRoute { get; } = canRoute;
+
+        /// <summary>
+        /// The endpoint this stream's sound has been sent to, or null where
+        /// it follows the default device.
+        /// </summary>
+        internal string? RoutedDeviceId { get; set; }
 
         internal SessionIdentity Identity { get; set; } = identity;
 

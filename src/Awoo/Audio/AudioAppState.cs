@@ -31,6 +31,17 @@ internal enum SessionKind
 /// Whether this is Windows' system-sounds session, which is one row like any
 /// other but belongs to no process the user would recognise.
 /// </param>
+/// <param name="RoutedDeviceId">
+/// The endpoint this application's sound has been sent to, or null where it
+/// follows the default device — which is the ordinary case. The id is one of
+/// <see cref="AudioDeviceState.Id"/>'s, so a row can name the device it
+/// points at.
+/// </param>
+/// <param name="CanRoute">
+/// Whether awoo can offer to move this application's sound to another
+/// device: false where Windows would not give up the routing interface, and
+/// false for a row that has no process of its own to route.
+/// </param>
 internal readonly record struct AudioAppState(
     string Id,
     string Name,
@@ -38,4 +49,6 @@ internal readonly record struct AudioAppState(
     SessionKind Kind,
     int Percent,
     bool IsMuted,
-    bool IsSystemSounds);
+    bool IsSystemSounds,
+    string? RoutedDeviceId,
+    bool CanRoute);

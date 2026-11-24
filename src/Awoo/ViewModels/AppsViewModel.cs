@@ -21,11 +21,21 @@ public sealed class AppsViewModel : INotifyPropertyChanged
 {
     private readonly IAudioService _audio;
 
+    /// <summary>
+    /// The devices a row could be sent to. Held here and pushed down into the
+    /// rows rather than subscribed to by each of them: rows come and go as
+    /// applications start and stop, and a per-row subscription would leave a
+    /// handler behind on every one.
+    /// </summary>
+    private IReadOnlyList<AudioDeviceState> _outputs;
+
     internal AppsViewModel(IAudioService audio)
     {
         _audio = audio;
+        _outputs = OutputsOf(audio.Devices);
         Apply(audio.Apps);
         _audio.AppsChanged += OnAppsChanged;
+        _audio.DevicesChanged += OnDevicesChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -42,7 +52,32 @@ public sealed class AppsViewModel : INotifyPropertyChanged
     /// <summary>True when nothing on the machine is playing or recording.</summary>
     public bool IsEmpty => Playback.Count == 0 && Recording.Count == 0;
 
+    /// <summary>
+    /// Re-reads where every application's sound is going. Nothing announces a
+    /// route changing — not awoo's own write and not one made in Windows'
+    /// Settings — so the flyout calls this as it opens, which is when a
+    /// stale selector would be seen.
+    /// </summary>
+    internal void Refresh() => _audio.RefreshAppRoutes();
+
     private void OnAppsChanged(object? sender, IReadOnlyList<AudioAppState> apps) => Apply(apps);
+
+    /// <summary>
+    /// A device plugged in, pulled out or renamed changes what every row's
+    /// selector can offer, and what the device a row is routed to is called.
+    /// </summary>
+    private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices)
+    {
+        _outputs = OutputsOf(devices);
+
+        foreach (var row in Playback.Concat(Recording))
+        {
+            row.UpdateDevices(_outputs);
+        }
+    }
+
+    private static IReadOnlyList<AudioDeviceState> OutputsOf(IReadOnlyList<AudioDeviceState> devices) =>
+        devices.Where(device => device.Kind == DeviceKind.Output).ToArray();
 
     private void Apply(IReadOnlyList<AudioAppState> apps)
     {
@@ -88,7 +123,7 @@ public sealed class AppsViewModel : INotifyPropertyChanged
 
             if (found < 0)
             {
-                rows.Insert(index, new AppRowViewModel(_audio, state));
+                rows.Insert(index, new AppRowViewModel(_audio, state, _outputs));
                 continue;
             }
 

@@ -71,6 +71,24 @@ internal interface IAudioService : IDisposable
     void SetAppMute(string appId, bool muted);
 
     /// <summary>
+    /// Sends one application's sound to one endpoint, or back to following
+    /// the default device when <paramref name="deviceId"/> is null. Windows
+    /// remembers the choice against the application, so it outlives the
+    /// application being closed and reopened. Ignored for a row that
+    /// <see cref="AudioAppState.CanRoute"/> says cannot be routed, and for
+    /// unknown ids.
+    /// </summary>
+    void SetAppDevice(string appId, string? deviceId);
+
+    /// <summary>
+    /// Re-reads where every application's sound is going. Nothing announces a
+    /// route changing — not awoo's own write and not one made in Windows'
+    /// Settings — so this is what brings <see cref="Apps"/> up to date, and
+    /// the flyout calls it as it opens.
+    /// </summary>
+    void RefreshAppRoutes();
+
+    /// <summary>
     /// Makes one endpoint Windows' default for its kind, across all three
     /// roles. Unknown ids are ignored, and so is a device that is already the
     /// default.

@@ -109,6 +109,13 @@ public sealed partial class FlyoutWindow : Window
 
     private void Show()
     {
+        // Where an application's sound goes is the one thing nothing reports
+        // changing — not awoo's own write, and not one made in Windows'
+        // Settings — so it is re-read as the flyout opens, which is the
+        // moment a stale selector would be seen. Before Place, because a
+        // route's device name is part of how wide a row wants to be.
+        Apps.Refresh();
+
         Place();
         AppWindow.Show(activateWindow: true);
         Activate();
