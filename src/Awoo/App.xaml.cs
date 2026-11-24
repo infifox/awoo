@@ -15,6 +15,12 @@ namespace Awoo;
 /// </summary>
 public partial class App : Application
 {
+    /// <summary>
+    /// Held for the life of the process, so a second launch can see the
+    /// first. Static: the lock is the process's rather than this object's.
+    /// </summary>
+    private static Mutex? _instanceLock;
+
     private AudioService? _audio;
     private SettingsService? _settings;
     private FlyoutWindow? _flyout;
@@ -28,6 +34,20 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // One awoo per session, settled before anything is created: the tray
+        // icon's identity derives from the exe path, so a second copy
+        // registering it would take the icon from the copy already running —
+        // which would keep running with no icon and no way to be told to
+        // exit. The second copy bows out instead.
+        _instanceLock = new Mutex(initiallyOwned: true, @"Local\awoo-single-instance", out var createdNew);
+        if (!createdNew)
+        {
+            _instanceLock.Dispose();
+            _instanceLock = null;
+            Exit();
+            return;
+        }
+
         // Core Audio calls back on its own threads; everything awoo does with
         // it runs here instead, on the one thread the UI also lives on.
         var queue = DispatcherQueue.GetForCurrentThread();
