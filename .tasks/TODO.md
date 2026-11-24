@@ -22,4 +22,4 @@ portable exe plus a simple installer, winget later.
 - [x] 04: Applications tab — [details](04-applications-tab.md) — on windows
 - [x] 05: Per-app device routing — [details](05-per-app-routing.md) — on windows
 - [x] 06: Tray gestures, settings, autostart — [details](06-gestures-settings.md) — on windows
-- [ ] 07: Installer, CI, docs — [details](07-installer-ci-docs.md) — on windows
+- [x] 07: Installer, CI, docs — [details](07-installer-ci-docs.md) — on windows

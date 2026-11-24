@@ -9,6 +9,9 @@ application, each with its own slider and its own mute, and lets you move an
 application's sound to another device without opening a settings app. awoo is
 that, for Windows 11.
 
+![The awoo flyout, showing the default output's volume above a Devices tab
+listing each output with its own slider and mute](docs/flyout-devices.png)
+
 ## Features
 
 - **The device you are listening on, switched from the flyout.** Every active
@@ -93,6 +96,9 @@ Windows' volume mixer moves, so a change made in either shows up in the other
 straight away. Several streams from one program — a browser with sound in two
 tabs — are one row between them, as they are in the mixer. Windows' own
 notification sounds get a row like anything else.
+
+![The Applications tab, with a row per application playing, each with its own
+icon, slider and mute](docs/flyout-applications.png)
 
 A row is there while the application is actually playing or recording, the way
 the Plasma applet's is rather than the way the Windows mixer's is: start
