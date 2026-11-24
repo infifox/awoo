@@ -8,6 +8,12 @@ internal static partial class NativeMethods
     internal const int SM_CXSMICON = 49;
     internal const int SM_CYSMICON = 50;
 
+    /// <summary>MONITOR_DEFAULTTOPRIMARY — fall back to the primary monitor.</summary>
+    internal const uint MONITOR_DEFAULTTOPRIMARY = 1;
+
+    /// <summary>MDT_EFFECTIVE_DPI — the DPI a window on that monitor is scaled by.</summary>
+    internal const int MDT_EFFECTIVE_DPI = 0;
+
     /// <summary>DWMWA_WINDOW_CORNER_PREFERENCE</summary>
     internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
 
@@ -40,8 +46,25 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     internal static partial int GetSystemMetrics(int index);
 
+    /// <summary>
+    /// The DPI-aware <see cref="GetSystemMetrics"/>: the plain one answers
+    /// for the system DPI however the monitor in question is scaled.
+    /// </summary>
+    [LibraryImport("user32.dll")]
+    internal static partial int GetSystemMetricsForDpi(int index, uint dpi);
+
+    [LibraryImport("user32.dll")]
+    internal static partial uint GetDpiForSystem();
+
     [LibraryImport("user32.dll")]
     internal static partial uint GetDpiForWindow(IntPtr hwnd);
+
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    /// <summary>Returns an HRESULT; <c>0</c> is success.</summary>
+    [LibraryImport("shcore.dll")]
+    internal static partial int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

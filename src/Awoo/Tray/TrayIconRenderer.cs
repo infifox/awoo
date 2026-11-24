@@ -1,5 +1,5 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Drawing.Text;
 using Awoo.Audio;
 using Awoo.Interop;
@@ -36,31 +36,34 @@ internal static class TrayIconRenderer
         var size = IconSize();
         var colour = TaskbarIsLight() ? Color.FromArgb(230, 0, 0, 0) : Color.FromArgb(240, 255, 255, 255);
 
-        // The glyphs sit inside the font's em box with room around them, so
-        // the em size goes slightly past the bitmap to fill it the way the
-        // shell's own icons do.
-        using var bitmap = new Bitmap(size, size);
+        // Every glyph of this font is exactly em-square: its advance width,
+        // its line height and its cell ascent are all one em, and the cell
+        // is what the designer drew the icon to fill. So an em of exactly
+        // the bitmap's size, drawn from the origin, puts the glyph's own
+        // grid over the bitmap's with no fractional offset left anywhere —
+        // which is the whole of making it crisp. Scaling the em to a
+        // fraction of the bitmap instead lands every outline between
+        // pixels, and that is what the icon used to be soft from.
+        using var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using (var graphics = Graphics.FromImage(bitmap))
-        using (var font = new Font(Font, size * 0.86f, FontStyle.Regular, GraphicsUnit.Pixel))
+        using (var font = new Font(Font, size, FontStyle.Regular, GraphicsUnit.Pixel))
         using (var brush = new SolidBrush(colour))
-        using (var format = new StringFormat(StringFormatFlags.NoWrap)
+
+        // Typographic rather than the default format, which pads a string
+        // with the font's overhang allowance and would push the glyph back
+        // off that grid.
+        using (var format = (StringFormat)StringFormat.GenericTypographic.Clone())
         {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center,
-        })
-        {
+            format.FormatFlags |= StringFormatFlags.NoWrap | StringFormatFlags.NoClip;
+            format.Alignment = StringAlignment.Near;
+            format.LineAlignment = StringAlignment.Near;
+
             graphics.Clear(Color.Transparent);
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
             // Not ClearType: sub-pixel rendering has no meaning over alpha.
             graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
 
-            graphics.DrawString(
-                VolumeGlyph.For(level),
-                font,
-                brush,
-                new RectangleF(0, 0, size, size),
-                format);
+            graphics.DrawString(VolumeGlyph.For(level), font, brush, PointF.Empty, format);
         }
 
         // Icon.FromHandle does not take ownership of the handle, so the
@@ -69,11 +72,44 @@ internal static class TrayIconRenderer
         return new RenderedIcon(Icon.FromHandle(handle), handle);
     }
 
-    /// <summary>The tray's own small-icon size, which is already DPI-scaled.</summary>
+    /// <summary>
+    /// The size the notification area draws an icon at: the small-icon metric
+    /// under the DPI of whichever monitor the taskbar is on. Hand the shell
+    /// any other size and it scales the icon to this one, which is blur
+    /// nothing done inside the bitmap can undo.
+    /// </summary>
     private static int IconSize()
     {
-        var width = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSMICON);
+        var width = NativeMethods.GetSystemMetricsForDpi(NativeMethods.SM_CXSMICON, TaskbarDpi());
+        if (width <= 0)
+        {
+            width = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSMICON);
+        }
+
         return width > 0 ? width : 16;
+    }
+
+    /// <summary>
+    /// The DPI of the monitor holding the taskbar, which is not the system
+    /// DPI once a second monitor is scaled differently — and it is the
+    /// taskbar's monitor the icon is drawn on.
+    /// </summary>
+    private static uint TaskbarDpi()
+    {
+        var taskbar = NativeMethods.FindWindow("Shell_TrayWnd", null);
+        if (taskbar != IntPtr.Zero)
+        {
+            var monitor = NativeMethods.MonitorFromWindow(taskbar, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+            if (monitor != IntPtr.Zero &&
+                NativeMethods.GetDpiForMonitor(monitor, NativeMethods.MDT_EFFECTIVE_DPI, out var dpi, out _) == 0 &&
+                dpi > 0)
+            {
+                return dpi;
+            }
+        }
+
+        var system = NativeMethods.GetDpiForSystem();
+        return system > 0 ? system : 96;
     }
 
     /// <summary>
