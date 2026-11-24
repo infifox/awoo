@@ -19,13 +19,13 @@ internal static class VolumeGlyph
 
     internal const string FallbackFontFamily = "Segoe MDL2 Assets";
 
-    private const string Mute = "";
-    private const string Volume0 = "";
-    private const string Volume1 = "";
-    private const string Volume2 = "";
-    private const string Volume3 = "";
-    private const string Microphone = "";
-    private const string MicrophoneOff = "";
+    private const string Mute = "\uE74F";
+    private const string Volume0 = "\uE992";
+    private const string Volume1 = "\uE993";
+    private const string Volume2 = "\uE994";
+    private const string Volume3 = "\uE995";
+    private const string Microphone = "\uE720";
+    private const string MicrophoneOff = "\uEC54";
 
     /// <summary>The speaker for an output's level, muted included.</summary>
     internal static string For(VolumeLevel level) => level switch
