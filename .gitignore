@@ -19,3 +19,6 @@ publish/
 # NuGet
 *.nupkg
 packages/
+
+# Inno Setup fetched by build.ps1 -Package
+.tools/
