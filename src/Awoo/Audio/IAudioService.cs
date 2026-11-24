@@ -17,6 +17,13 @@ internal interface IAudioService : IDisposable
     /// </summary>
     IReadOnlyList<AudioDeviceState> Devices { get; }
 
+    /// <summary>
+    /// Every application playing or recording right now, playback before
+    /// recording and alphabetical within each. One row per application, not
+    /// per stream. A fresh list on every change, like <see cref="Devices"/>.
+    /// </summary>
+    IReadOnlyList<AudioAppState> Apps { get; }
+
     /// <summary>Whether this build of Windows let us at the default-device switch.</summary>
     bool CanSetDefaultDevice { get; }
 
@@ -34,6 +41,13 @@ internal interface IAudioService : IDisposable
     /// </summary>
     event EventHandler<IReadOnlyList<AudioDeviceState>>? DevicesChanged;
 
+    /// <summary>
+    /// Raised whenever <see cref="Apps"/> changes: an application starting or
+    /// stopping, or one's volume or mute moving — including from Windows' own
+    /// volume mixer. Dispatched like <see cref="StateChanged"/>.
+    /// </summary>
+    event EventHandler<IReadOnlyList<AudioAppState>>? AppsChanged;
+
     /// <summary>Sets the default output device's volume, 0–100.</summary>
     void SetPercent(int percent);
 
@@ -45,6 +59,16 @@ internal interface IAudioService : IDisposable
 
     /// <summary>Mutes or unmutes one named endpoint. Unknown ids are ignored.</summary>
     void SetDeviceMute(string deviceId, bool muted);
+
+    /// <summary>
+    /// Sets one application's own volume, 0–100 — what the Windows mixer's
+    /// per-app slider moves, under the device's volume rather than instead of
+    /// it. Applies to every stream the app has. Unknown ids are ignored.
+    /// </summary>
+    void SetAppPercent(string appId, int percent);
+
+    /// <summary>Mutes or unmutes every stream of one application. Unknown ids are ignored.</summary>
+    void SetAppMute(string appId, bool muted);
 
     /// <summary>
     /// Makes one endpoint Windows' default for its kind, across all three

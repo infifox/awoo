@@ -103,6 +103,90 @@
                     </Grid>
                 </Grid>
             </DataTemplate>
+
+            <!-- One application: its icon and name on top, its own volume
+                 underneath. Shared by what is playing and what is
+                 recording, which the Plasma applet treats alike. The top
+                 line is a two-column grid so task 05's device selector has
+                 somewhere to go. -->
+            <DataTemplate x:Key="AppRowTemplate" x:DataType="vm:AppRowViewModel">
+                <Grid RowSpacing="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Padding="8,0,0,0" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- The app's own icon where there is one, and the
+                             glyph for what it is doing where there is not. -->
+                        <Grid Width="16" Height="16" VerticalAlignment="Center">
+                            <Image
+                                Source="{x:Bind Icon, Mode=OneWay}"
+                                Visibility="{x:Bind HasIcon, Mode=OneWay}" />
+
+                            <FontIcon
+                                FontSize="14"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Glyph="{x:Bind FallbackGlyph}"
+                                Visibility="{x:Bind HasNoIcon, Mode=OneWay}" />
+                        </Grid>
+
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Text="{x:Bind Name, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            MaxLines="1" />
+                    </Grid>
+
+                    <!-- Indented to sit under the name, the way a device
+                         row's controls do. -->
+                    <Grid Grid.Row="1" Margin="32,0,0,0" ColumnSpacing="10" Height="32">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ToggleButton
+                            Width="36"
+                            Height="32"
+                            Padding="0"
+                            IsChecked="{x:Bind IsMuted, Mode=TwoWay}"
+                            ToolTipService.ToolTip="{x:Bind MuteToolTip, Mode=OneWay}"
+                            AutomationProperties.Name="Mute">
+                            <FontIcon FontSize="16" Glyph="{x:Bind MuteGlyph, Mode=OneWay}" />
+                        </ToggleButton>
+
+                        <Slider
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Minimum="0"
+                            Maximum="100"
+                            StepFrequency="1"
+                            SmallChange="1"
+                            LargeChange="5"
+                            IsThumbToolTipEnabled="False"
+                            Value="{x:Bind Percent, Mode=TwoWay}"
+                            AutomationProperties.Name="Volume" />
+
+                        <TextBlock
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            MinWidth="40"
+                            TextAlignment="Right"
+                            Style="{ThemeResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{x:Bind PercentText, Mode=OneWay}" />
+                    </Grid>
+                </Grid>
+            </DataTemplate>
         </Grid.Resources>
 
         <Grid.RowDefinitions>
@@ -225,15 +309,50 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Task 04 fills this in. -->
-            <TextBlock
+            <ScrollViewer
                 x:Name="ApplicationsTab"
                 Visibility="Collapsed"
-                Margin="0,4,0,4"
-                Style="{ThemeResource BodyTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                TextWrapping="Wrap"
-                Text="Per-application volume is not here yet." />
+                MaxHeight="420"
+                HorizontalScrollMode="Disabled"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        Text="Playing"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind Apps.HasPlayback, Mode=OneWay}" />
+
+                    <ItemsRepeater ItemsSource="{x:Bind Apps.Playback, Mode=OneWay}"
+                                   ItemTemplate="{StaticResource AppRowTemplate}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="10" />
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+
+                    <TextBlock
+                        Text="Recording"
+                        Margin="0,6,0,0"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind Apps.HasRecording, Mode=OneWay}" />
+
+                    <ItemsRepeater ItemsSource="{x:Bind Apps.Recording, Mode=OneWay}"
+                                   ItemTemplate="{StaticResource AppRowTemplate}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="10" />
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+
+                    <TextBlock
+                        Text="No applications are playing or recording audio"
+                        Margin="0,4,0,4"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap"
+                        Visibility="{x:Bind Apps.IsEmpty, Mode=OneWay}" />
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Window>

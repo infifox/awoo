@@ -4,9 +4,10 @@ A system-tray volume control for Windows 11, built to work the way the
 KDE Plasma 6.4 volume applet does — in native Fluent clothing.
 
 Early days. The tray icon and its flyout are standing: the header drives the
-default output device for real, and the Devices tab lists every output and
-input with its own volume, mute and one-click set-as-default. Per-app volume
-and per-app routing come next.
+default output device for real, the Devices tab lists every output and input
+with its own volume, mute and one-click set-as-default, and the Applications
+tab gives everything playing or recording a slider of its own. Per-app device
+routing comes next.
 
 ## Building
 
@@ -37,7 +38,20 @@ device's name is both which one Windows is using and the way to change it:
 selecting it makes that device the default for all three of Windows' roles
 (playback, multimedia and calls) on the spot, and the header moves onto it.
 Plugging a device in or pulling it out adds or removes its row while the
-flyout is open. **Applications** is where per-app volume will go.
+flyout is open.
+
+**Applications** is the same idea one level down: a row for every application
+playing, and under them a row for every application recording, each with its
+own icon, name, slider and mute. The volume there is the app's own, the one
+Windows' volume mixer moves, so a change made in either shows up in the other
+straight away. Several streams from one program — a browser with sound in two
+tabs — are one row between them, as they are in the mixer. Windows' own
+notification sounds get a row like anything else.
+
+A row is there while the application is actually playing or recording, the way
+the Plasma applet's is rather than the way the Windows mixer's is: start
+something and its row appears, stop it and the row goes a moment later. When
+nothing at all is making or taking sound, the tab says so.
 
 Switching the default device goes through `IPolicyConfig`, which Windows does
 not document — the same route EarTrumpet and SoundSwitch take. Where a build

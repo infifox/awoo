@@ -53,4 +53,19 @@ internal static class VolumeGlyph
         DeviceKind.Output => For(level),
         _ => level == VolumeLevel.Muted ? MicrophoneOff : Microphone,
     };
+
+    /// <summary>
+    /// What an application's row shows where its icon could not be
+    /// extracted. Playing or recording, rather than anything about the app —
+    /// there is nothing else known about it at that point.
+    /// </summary>
+    internal static string ForSession(SessionKind kind) =>
+        kind == SessionKind.Playback ? Volume3 : Microphone;
+
+    /// <summary>An application row's mute button, the same way a device row's works.</summary>
+    internal static string ForMute(SessionKind kind, VolumeLevel level) => kind switch
+    {
+        SessionKind.Playback => For(level),
+        _ => level == VolumeLevel.Muted ? MicrophoneOff : Microphone,
+    };
 }

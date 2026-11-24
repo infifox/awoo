@@ -33,6 +33,7 @@ internal sealed class AudioService : IAudioService
     private readonly IMMDeviceEnumerator _enumerator;
     private readonly IPolicyConfig? _policyConfig;
     private readonly DeviceNotifications _deviceNotifications;
+    private readonly AudioSessionIndex _sessions;
 
     /// <summary>Every endpoint we hold open, by Core Audio's endpoint id.</summary>
     private readonly Dictionary<string, Endpoint> _endpoints = new(StringComparer.Ordinal);
@@ -60,6 +61,11 @@ internal sealed class AudioService : IAudioService
         _deviceNotifications = new DeviceNotifications(this);
         _ = _enumerator.RegisterEndpointNotificationCallback(_deviceNotifications);
 
+        // Sessions hang off endpoints, so the index has to exist before the
+        // first Refresh opens any.
+        _sessions = new AudioSessionIndex(dispatch);
+        _sessions.AppsChanged += (_, apps) => AppsChanged?.Invoke(this, apps);
+
         State = VolumeState.NoDevice;
         Devices = [];
         Refresh();
@@ -69,9 +75,13 @@ internal sealed class AudioService : IAudioService
 
     public event EventHandler<IReadOnlyList<AudioDeviceState>>? DevicesChanged;
 
+    public event EventHandler<IReadOnlyList<AudioAppState>>? AppsChanged;
+
     public VolumeState State { get; private set; }
 
     public IReadOnlyList<AudioDeviceState> Devices { get; private set; }
+
+    public IReadOnlyList<AudioAppState> Apps => _sessions.Apps;
 
     public bool CanSetDefaultDevice => _policyConfig is not null;
 
@@ -106,6 +116,10 @@ internal sealed class AudioService : IAudioService
             SetMuted(endpoint, muted);
         }
     }
+
+    public void SetAppPercent(string appId, int percent) => _sessions.SetPercent(appId, percent);
+
+    public void SetAppMute(string appId, bool muted) => _sessions.SetMute(appId, muted);
 
     public void SetDefaultDevice(string deviceId)
     {
@@ -160,6 +174,7 @@ internal sealed class AudioService : IAudioService
         }
 
         _endpoints.Clear();
+        _sessions.Dispose();
     }
 
     /// <summary>The roles a "set as default" covers, in the order Windows applies them.</summary>
@@ -248,11 +263,17 @@ internal sealed class AudioService : IAudioService
         var endpoint = new Endpoint(this, device, volume, id, kind, FriendlyName(device, kind));
         _ = volume.RegisterControlChangeNotify(endpoint);
         Read(endpoint);
+
+        // What this endpoint is playing or recording, for the Applications tab.
+        _sessions.Attach(device, id, kind);
         return endpoint;
     }
 
-    private static void Release(Endpoint endpoint) =>
+    private void Release(Endpoint endpoint)
+    {
         _ = endpoint.Volume.UnregisterControlChangeNotify(endpoint);
+        _sessions.Detach(endpoint.Id);
+    }
 
     /// <summary>Re-reads volume and mute from the endpoint itself.</summary>
     private static void Read(Endpoint endpoint)

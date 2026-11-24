@@ -33,12 +33,13 @@ public sealed partial class FlyoutWindow : Window
     private bool _exiting;
     private bool _relayoutQueued;
 
-    internal FlyoutWindow(VolumeViewModel volume, DevicesViewModel devices)
+    internal FlyoutWindow(VolumeViewModel volume, DevicesViewModel devices, AppsViewModel apps)
     {
         // Assigned before InitializeComponent: x:Bind reads the properties as
         // the generated bindings are built.
         ViewModel = volume;
         Devices = devices;
+        Apps = apps;
         InitializeComponent();
 
         // For a Window root the XAML compiler wires x:Bind's first evaluation
@@ -69,10 +70,13 @@ public sealed partial class FlyoutWindow : Window
         Activated += OnActivated;
         AppWindow.Closing += OnClosing;
 
-        // A device plugged in or pulled out changes how tall the flyout has
-        // to be, and it can happen while it is open.
+        // A device plugged in or pulled out, or an app starting or stopping,
+        // changes how tall the flyout has to be, and either can happen while
+        // it is open.
         Devices.Outputs.CollectionChanged += (_, _) => QueueRelayout();
         Devices.Inputs.CollectionChanged += (_, _) => QueueRelayout();
+        Apps.Playback.CollectionChanged += (_, _) => QueueRelayout();
+        Apps.Recording.CollectionChanged += (_, _) => QueueRelayout();
     }
 
     /// <summary>The default output device, as the header shows it.</summary>
@@ -80,6 +84,9 @@ public sealed partial class FlyoutWindow : Window
 
     /// <summary>Every active endpoint, as the Devices tab lists them.</summary>
     internal DevicesViewModel Devices { get; }
+
+    /// <summary>Everything playing or recording, as the Applications tab lists it.</summary>
+    internal AppsViewModel Apps { get; }
 
     /// <summary>Shows the flyout if it is hidden, hides it if it is showing.</summary>
     public void Toggle()
