@@ -1,0 +1,203 @@
+name: Release
+
+# Dispatched by hand with the version to release. It writes that version into
+# the project, builds the two artifacts people download, commits and tags the
+# branch it was dispatched on, and publishes the GitHub release -- so the
+# repository's version always matches the latest release.
+#
+# A tag pushed with GITHUB_TOKEN triggers no other workflow, which is why
+# publishing lives here rather than behind a `v*` tag in build.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version to release, without the v (e.g. 1.2.0 or 1.2.0-rc.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # One release at a time, and never cancel one half-way: it pushes.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release ${{ inputs.version }}
+    runs-on: windows-latest
+    permissions:
+      # The version commit, the tag and the release all need write.
+      contents: write
+
+    env:
+      INNO_SETUP_VERSION: '6.7.3'
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Everything irreversible is after this step. A malformed version, a
+      # version already tagged, or a dispatch from a tag rather than a branch
+      # stops here, before anything has been committed, tagged or published.
+      - name: Check the version and the ref
+        id: version
+        shell: pwsh
+        run: |
+          # Quoted, because an empty input reads back as $null.
+          $version = "$env:VERSION".Trim()
+
+          # major.minor.patch, with an optional prerelease suffix. No build
+          # metadata: it has nowhere to go in a file name or a version resource.
+          $semver = '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if ($version -notmatch $semver) {
+            throw "'$version' is not a semantic version: expected major.minor.patch, optionally with a -prerelease suffix."
+          }
+
+          if ($env:GITHUB_REF_TYPE -ne 'branch') {
+            throw "This workflow commits the version, so it has to be dispatched on a branch; got $env:GITHUB_REF_TYPE '$env:GITHUB_REF_NAME'."
+          }
+
+          $tag = "v$version"
+          $existing = git ls-remote --tags origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not ask the remote about its tags.' }
+          if ($existing) { throw "$tag already exists. Releases are not re-cut; pick a new version." }
+
+          # Win32 version resources and Inno's VersionInfoVersion take digits
+          # only, so a prerelease version keeps its suffix in names and loses
+          # it there -- the same split build.yml makes.
+          $numeric = ($version -split '-')[0]
+
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Append
+          "numeric=$numeric" | Out-File $env:GITHUB_OUTPUT -Append
+          "tag=$tag"         | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Releasing $version as $tag (file version $numeric) from $env:GITHUB_REF_NAME"
+
+      # Written before the build, so the artifacts are built from exactly the
+      # tree that gets committed and tagged.
+      - name: Write the version into the project
+        shell: pwsh
+        run: |
+          $path = Resolve-Path 'src/Awoo/Awoo.csproj'
+          $pattern = '<Version>[^<]*</Version>'
+
+          # Read and written through .NET rather than Get-Content/Set-Content:
+          # UTF-8 either way, whichever PowerShell this runs under, so the
+          # comments' em dashes survive the round trip.
+          $xml = [System.IO.File]::ReadAllText($path)
+          if ($xml -notmatch $pattern) { throw "No <Version> element to rewrite in $path." }
+
+          # Only the first <Version>: the rest of the file is comments and
+          # targets, and a regex is less invasive than an [xml] round-trip,
+          # which would reformat everything around it.
+          $updated = [regex]::new($pattern).Replace($xml, "<Version>${{ steps.version.outputs.version }}</Version>", 1)
+
+          # No BOM, and the file's own line endings and final newline left
+          # exactly as they were, so the commit is the one line.
+          [System.IO.File]::WriteAllText($path, $updated, (New-Object System.Text.UTF8Encoding $false))
+          Write-Host (Select-String -Path $path -Pattern '<Version>').Line.Trim()
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build src/Awoo/Awoo.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
+
+      # Self-contained, so the portable build and the installer both run on a
+      # machine with no .NET runtime and no Windows App Runtime of their own.
+      - name: Publish the portable build
+        run: >
+          dotnet publish src/Awoo/Awoo.csproj -c Release
+          -p:SelfContained=true
+          -p:Version=${{ steps.version.outputs.version }}
+          -p:PublishDir=${{ github.workspace }}/artifacts/portable/
+
+      - name: Zip the portable build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/dist | Out-Null
+          $zip = "artifacts/dist/awoo-${{ steps.version.outputs.version }}-portable-win-x64.zip"
+          Compress-Archive -Path artifacts/portable/* -DestinationPath $zip -CompressionLevel Optimal
+          "{0} -- {1:N1} MB" -f $zip, ((Get-Item $zip).Length / 1MB)
+
+      # Inno Setup ships its command-line compiler as a NuGet package, which
+      # pins the version rather than taking whatever the runner image happens
+      # to carry -- and needs no installer and no admin rights.
+      - name: Fetch Inno Setup ${{ env.INNO_SETUP_VERSION }}
+        shell: pwsh
+        run: |
+          $v = $env:INNO_SETUP_VERSION
+          $url = "https://api.nuget.org/v3-flatcontainer/tools.innosetup/$v/tools.innosetup.$v.nupkg"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP/innosetup.zip" -UseBasicParsing
+          Expand-Archive -Path "$env:RUNNER_TEMP/innosetup.zip" -DestinationPath "$env:RUNNER_TEMP/innosetup"
+          $iscc = "$env:RUNNER_TEMP/innosetup/tools/ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "No ISCC.exe in Tools.InnoSetup $v." }
+          "ISCC=$iscc" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Compile the installer
+        shell: pwsh
+        run: |
+          & $env:ISCC packaging/awoo.iss `
+            "/DAppVersion=${{ steps.version.outputs.version }}" `
+            "/DAppVersionNumeric=${{ steps.version.outputs.numeric }}" `
+            "/DPayloadDir=${{ github.workspace }}\artifacts\portable" `
+            "/DOutputDir=${{ github.workspace }}\artifacts\dist"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
+
+      - name: Check both artifacts are there
+        shell: pwsh
+        run: |
+          $expected = @(
+            "artifacts/dist/awoo-${{ steps.version.outputs.version }}-portable-win-x64.zip",
+            "artifacts/dist/awoo-${{ steps.version.outputs.version }}-setup.exe"
+          )
+          $missing = $expected | Where-Object { -not (Test-Path $_) }
+          if ($missing) { throw "Not produced: $($missing -join ', ')" }
+          Get-ChildItem artifacts/dist | ForEach-Object { "{0,8:N1} MB  {1}" -f ($_.Length/1MB), $_.Name }
+
+      # The build is green and the artifacts are on disk, so the commit and
+      # the tag go out now rather than earlier: a failed build leaves the
+      # branch and the tag list untouched.
+      - name: Commit and tag the version
+        shell: pwsh
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add src/Awoo/Awoo.csproj
+
+          # --name-only rather than --quiet: --quiet says "there are changes"
+          # with exit code 1, and a non-zero exit is itself an error here.
+          $staged = git diff --cached --name-only
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the staged changes.' }
+
+          if (-not $staged) {
+            # The project already carried this version -- a first release of
+            # the version in the file. There is nothing to commit, and HEAD is
+            # already what the tag should point at.
+            Write-Host "src/Awoo/Awoo.csproj already says ${{ steps.version.outputs.version }}; no version commit needed."
+          } else {
+            git commit -m "chore: release ${{ steps.version.outputs.version }}"
+            if ($LASTEXITCODE -ne 0) { throw 'Committing the version failed.' }
+          }
+
+          git tag -a '${{ steps.version.outputs.tag }}' -m 'awoo ${{ steps.version.outputs.version }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Tagging failed.' }
+
+          # Atomic, so the branch and the tag arrive together or not at all.
+          git push --atomic origin "HEAD:refs/heads/$env:GITHUB_REF_NAME" '${{ steps.version.outputs.tag }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Pushing the version commit and its tag failed.' }
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create '${{ steps.version.outputs.tag }}' `
+            --title "awoo ${{ steps.version.outputs.version }}" `
+            --generate-notes `
+            --verify-tag `
+            (Get-ChildItem artifacts/dist | ForEach-Object { $_.FullName })
+          if ($LASTEXITCODE -ne 0) { throw "Creating the release failed with exit code $LASTEXITCODE." }

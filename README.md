@@ -208,8 +208,11 @@ iscc packaging\awoo.iss
 
 `packaging\awoo.iss` is an [Inno Setup](https://jrsoftware.org/isinfo.php)
 script, and takes `/DAppVersion`, `/DPayloadDir` and `/DOutputDir` to override
-its defaults. `.github/workflows/build.yml` does both on every push, and
-publishes the two artifacts to a GitHub release on a `v*` tag.
+its defaults. `.github/workflows/build.yml` does both on every push.
+
+A release is a hand-dispatched run of `.github/workflows/release.yml` with the
+version as its only argument: it writes that version into the project, commits
+and tags it, and publishes the two artifacts to a GitHub release for the tag.
 
 awoo is C# on WinUI 3, with the tray icon from
 [H.NotifyIcon](https://github.com/HavenDV/H.NotifyIcon) and audio through

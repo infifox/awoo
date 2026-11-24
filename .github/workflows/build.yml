@@ -3,11 +3,10 @@ name: Build
 # awoo is a Windows 11 app, so everything here runs on Windows. Every push and
 # pull request builds it and produces the two artifacts people actually
 # download, which is what keeps the release path from being first exercised on
-# the day of a release. A `v*` tag publishes those same two to a GitHub release.
+# the day of a release. Publishing a release is release.yml's job.
 on:
   push:
     branches: ['**']
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -22,9 +21,6 @@ jobs:
   build:
     name: Build and package
     runs-on: windows-latest
-    permissions:
-      # Only the release step at the end needs more than read.
-      contents: write
 
     env:
       INNO_SETUP_VERSION: '6.7.3'
@@ -40,13 +36,8 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF -like 'refs/tags/v*') {
-            # A tag is the release's version, and it wins over the project's.
-            $version = $env:GITHUB_REF_NAME.Substring(1)
-          } else {
-            $xml = [xml](Get-Content src/Awoo/Awoo.csproj)
-            $version = ($xml.Project.PropertyGroup.Version | Where-Object { $_ }) -as [string]
-          }
+          $xml = [xml](Get-Content src/Awoo/Awoo.csproj)
+          $version = ($xml.Project.PropertyGroup.Version | Where-Object { $_ }) -as [string]
           if (-not $version) { throw 'Could not work out a version.' }
 
           # Win32 version resources and Inno's VersionInfoVersion take digits
@@ -117,18 +108,3 @@ jobs:
           name: awoo-${{ steps.version.outputs.version }}
           path: artifacts/dist/*
           if-no-files-found: error
-
-      # The tag is the only thing that publishes. Everything above has already
-      # run on the push that led here, so this step adds no new build.
-      - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create $env:GITHUB_REF_NAME `
-            --title "awoo ${{ steps.version.outputs.version }}" `
-            --generate-notes `
-            --verify-tag `
-            (Get-ChildItem artifacts/dist | ForEach-Object { $_.FullName })
-          if ($LASTEXITCODE -ne 0) { throw "Creating the release failed with exit code $LASTEXITCODE." }
