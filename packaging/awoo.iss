@@ -91,8 +91,12 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 ; this value itself on a first run and keeps it pointing at wherever it is
 ; installed, but doing it here means autostart is registered by installing
 ; rather than by launching. uninsdeletevalue is what takes it away again.
+;
+; Fresh installs only: the default gets one go, like awoo's own. Turning the
+; setting off deletes this value, and an upgrade that wrote it again would
+; turn autostart back on behind the person who turned it off.
 Root: HKCU; Subkey: "{#RunKey}"; ValueType: string; ValueName: "{#AppName}"; \
-  ValueData: """{app}\{#AppExe}"""; Flags: uninsdeletevalue
+  ValueData: """{app}\{#AppExe}"""; Flags: uninsdeletevalue; Check: IsFreshInstall
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; \
@@ -103,6 +107,25 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; \
 Type: filesandordirs; Name: "{localappdata}\{#AppName}"
 
 [Code]
+var
+  FreshInstall: Boolean;
+
+{ Whether this run is a first install rather than an upgrade, read before
+  anything is written: by the end of an install the uninstall key exists
+  either way. The key is HKCU because the install is per-user. }
+function InitializeSetup(): Boolean;
+begin
+  { ExpandConstant collapses the AppId's doubled brace. }
+  FreshInstall := not RegKeyExists(HKCU, ExpandConstant(
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1'));
+  Result := True;
+end;
+
+function IsFreshInstall(): Boolean;
+begin
+  Result := FreshInstall;
+end;
+
 { awoo has no main window for Windows to close, so Restart Manager cannot
   always talk it into quitting. Ending it outright costs nothing: every
   setting is written to disk as it is changed. }
