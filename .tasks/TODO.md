@@ -13,4 +13,4 @@ dispatched GitHub action performs releases, and the display name becomes
 - [x] 03: Crisp tray icon — [details](03-crisp-tray-icon.md) — on windows
 - [x] 04: Hide devices from the flyout — [details](04-hide-devices.md) — on windows
 - [x] 05: Manual release workflow — [details](05-manual-release-workflow.md)
-- [ ] 06: Capitalize the display name — [details](06-capitalize-display-name.md) — on windows
+- [x] 06: Capitalize the display name — [details](06-capitalize-display-name.md) — on windows

@@ -48,7 +48,7 @@ public sealed partial class SettingsWindow : Window
         // ever getting focus — the same reason the flyout does it.
         Bindings.Update();
 
-        Title = "awoo settings";
+        Title = "Awoo settings";
         _hwnd = WindowNative.GetWindowHandle(this);
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)

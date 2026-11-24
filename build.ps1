@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Builds (and optionally runs) awoo.
+    Builds (and optionally runs) Awoo.
 
 .DESCRIPTION
     Finds a .NET 10 SDK, bootstrapping one into .dotnet/ if the machine has
-    none, then builds src/Awoo. awoo is an unpackaged WinUI 3 app, so the
+    none, then builds src/Awoo. Awoo is an unpackaged WinUI 3 app, so the
     result is a plain exe under src/Awoo/bin.
 
 .PARAMETER Configuration
@@ -150,7 +150,7 @@ if ($Package) {
     # Self-contained, so the result runs on a machine with neither the .NET
     # runtime nor the Windows App Runtime installed.
     Write-Host ''
-    Write-Host "Publishing awoo $version, self-contained ..." -ForegroundColor Cyan
+    Write-Host "Publishing Awoo $version, self-contained ..." -ForegroundColor Cyan
     & $dotnet publish $project -c $Configuration -p:SelfContained=true -p:PublishDir=$portable
     if ($LASTEXITCODE -ne 0) {
         throw "Publish failed with exit code $LASTEXITCODE."
@@ -185,6 +185,6 @@ if ($Run) {
     }
 
     # awoo is tray-only, so there is nothing to wait for on the console.
-    Write-Host 'Starting awoo. Look for the speaker icon in the notification area; right-click it and choose Exit to quit.' -ForegroundColor Cyan
+    Write-Host 'Starting Awoo. Look for the speaker icon in the notification area; right-click it and choose Exit to quit.' -ForegroundColor Cyan
     Start-Process -FilePath $exe
 }

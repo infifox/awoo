@@ -183,7 +183,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Committing the version failed.' }
           }
 
-          git tag -a '${{ steps.version.outputs.tag }}' -m 'awoo ${{ steps.version.outputs.version }}'
+          git tag -a '${{ steps.version.outputs.tag }}' -m 'Awoo ${{ steps.version.outputs.version }}'
           if ($LASTEXITCODE -ne 0) { throw 'Tagging failed.' }
 
           # Atomic, so the branch and the tag arrive together or not at all.
@@ -196,7 +196,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create '${{ steps.version.outputs.tag }}' `
-            --title "awoo ${{ steps.version.outputs.version }}" `
+            --title "Awoo ${{ steps.version.outputs.version }}" `
             --generate-notes `
             --verify-tag `
             (Get-ChildItem artifacts/dist | ForEach-Object { $_.FullName })

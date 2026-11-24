@@ -31,11 +31,11 @@
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\awoo.ico</ApplicationIcon>
-    <AssemblyTitle>awoo</AssemblyTitle>
-    <Product>awoo</Product>
+    <AssemblyTitle>Awoo</AssemblyTitle>
+    <Product>Awoo</Product>
     <Description>Tray volume control for Windows 11</Description>
-    <Company>awoo</Company>
-    <Copyright>Copyright (c) awoo contributors</Copyright>
+    <Company>Awoo</Company>
+    <Copyright>Copyright (c) Awoo contributors</Copyright>
     <Version>0.1.0</Version>
   </PropertyGroup>
 

@@ -59,7 +59,7 @@ public sealed partial class FlyoutWindow : Window
         // of ever getting focus.
         Bindings.Update();
 
-        Title = "awoo";
+        Title = "Awoo";
         _hwnd = WindowNative.GetWindowHandle(this);
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
