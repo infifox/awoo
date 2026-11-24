@@ -47,7 +47,7 @@ internal static class VolumeGlyph
 
     /// <summary>
     /// What a row's mute button shows. An output says how loud it is, the way
-    /// the header does; a microphone only has the two states.
+    /// the tray icon does; a microphone only has the two states.
     /// </summary>
     internal static string ForMute(DeviceKind kind, VolumeLevel level) => kind switch
     {
