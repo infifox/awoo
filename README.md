@@ -44,10 +44,11 @@ registered to start with Windows. Uninstalling from *Settings → Apps* takes
 all three away again, the autostart entry included.
 
 **Portable** — `awoo-<version>-portable-win-x64.zip` from the same release.
-Unzip it anywhere and run `awoo.exe`; there is no install step, and nothing is
-written outside `%LOCALAPPDATA%\awoo`, which holds awoo's two settings. Move
-the folder and awoo follows itself: it keeps its autostart entry pointing at
-wherever it is now.
+Unzip it anywhere and run `awoo.exe`; there is no install step. awoo keeps its
+settings in `%LOCALAPPDATA%\awoo` and writes one registry value besides: the
+*Start with Windows* entry under your user's `Run` key, on by default and
+yours to turn off. Move the folder and awoo follows itself: it keeps that
+autostart entry pointing at wherever it is now.
 
 winget is not here yet; it is for after a first release.
 
