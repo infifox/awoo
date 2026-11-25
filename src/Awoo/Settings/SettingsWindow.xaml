@@ -138,7 +138,7 @@
                     TextWrapping="Wrap" />
 
                 <TextBlock
-                    Text="Awoo can't hide it at the moment, most likely because a Windows update moved it out of reach."
+                    Text="Awoo can't hide it at the moment."
                     Margin="0,2,0,0"
                     Style="{ThemeResource CaptionTextBlockStyle}"
                     Foreground="{ThemeResource SystemFillColorCautionBrush}"
