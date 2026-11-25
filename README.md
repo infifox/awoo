@@ -22,6 +22,10 @@ percentage and mute](docs/flyout-devices.png)
 - **Per-application output routing.** Send one application's sound to a
   device of its own, the thing Windows buries in Settings → System → Sound →
   *App volume and device preferences*.
+- **Spatial sound per output.** Off, Windows Sonic for Headphones, Dolby
+  Atmos, DTS — whichever of them the device will actually take — from a
+  dropdown beside its name. The one setting Windows' own volume flyout has
+  that Awoo did not.
 - **The Plasma applet's tray gestures.** Scroll over the icon to change the
   volume, middle-click to mute.
 - **A tray icon that is the volume**, drawn from the system icon font, with
@@ -84,6 +88,13 @@ The marker beside a device's name is both which one Windows is using and the
 way to change it: selecting it makes that device the default for all three of
 Windows' roles (playback, multimedia and calls) on the spot. Plugging a device
 in or pulling it out adds or removes its row while the flyout is open.
+
+An output that has spatial sound carries a dropdown to the right of its name:
+*Off* and then every format that device can be put into — Windows Sonic for
+Headphones, Dolby Atmos, DTS, whichever of them this machine has and this
+endpoint's licence covers. Picking one is the same change Settings → System →
+Sound makes, and the two agree in both directions. Outputs with no spatial
+sound to offer, and every input, show nothing there.
 
 **Applications** is the same idea one level down: a row for every application
 playing, and under them a row for every application recording, each with its
@@ -172,12 +183,26 @@ which Microsoft documents, and both the route
 Windows build could change or withdraw either, and that much of Awoo would
 stop working.**
 
+Spatial sound is half documented. Reading which format an output is in and
+putting it into another both go through the documented
+`SpatialAudioDeviceConfiguration`, which takes a change from Awoo's ordinary
+unelevated process — no administrator prompt, for any format. What that API
+cannot answer is which formats are worth offering: its
+`IsSpatialAudioFormatSupported` says yes to ones the setter then refuses,
+because it asks whether the endpoint could carry the format rather than
+whether this machine has it to give. So the menu is read off the endpoint's
+own property store, where Windows publishes a record per format saying
+whether it is usable here and now — the property store is documented, the key
+is not.
+
 It would not take the rest with it. Where a build of Windows will not hand one
 over, Awoo goes quiet about that feature and nothing else is affected: the
-default markers stay as read-only indicators of which device is in use, and
-the per-application selector is not shown at all rather than offering a
-control that would do nothing. Volume, mute, the device list and the
-application list are all documented Core Audio, and are not exposed to this.
+default markers stay as read-only indicators of which device is in use, the
+per-application selector is not shown at all rather than offering a control
+that would do nothing, and an output whose format list cannot be read shows no
+spatial dropdown rather than one full of guesses. Volume, mute, the device
+list and the application list are all documented Core Audio, and are not
+exposed to this.
 
 Two things Windows itself decides, and Awoo reports rather than argues with: a
 device has to exist to be sent sound, and an application has to be making
