@@ -96,6 +96,10 @@ division Windows' own Sound settings draws. With two questions in the row the
 name is a plain label rather than a click target, and hovering a marker says
 which of the two it is.
 
+With **Prevent Windows from automatically switching my audio device** on, the
+markers here are also the only thing that moves a default: Awoo puts back
+anything else that moves one, Windows' own Sound settings included.
+
 An output that has spatial sound carries a dropdown to the right of its name:
 *Off* and then every format that device can be put into — Windows Sonic for
 Headphones, Dolby Atmos, DTS, whichever of them this machine has and this
@@ -159,7 +163,7 @@ guess at the position while it is tucked away.
 
 ## Settings
 
-**Settings** on the icon's right-click menu opens a window with the four
+**Settings** on the icon's right-click menu opens a window with the five
 choices Awoo has:
 
 - **Volume step** — how far one notch of the wheel moves the volume, 1 to 25
@@ -175,6 +179,18 @@ choices Awoo has:
   communications role alone. Turning it off again moves neither — the markers
   become one again, and the next device selected takes all three roles as
   before.
+- **Prevent Windows from automatically switching my audio device** — off by
+  default. Turning it on remembers whichever output and input are default at
+  that moment, and from then on anything that moves a default from outside
+  Awoo is put straight back: Windows switching to a device as it is plugged
+  in, a driver, another application, or Windows' own Sound settings page,
+  which this does override. There is no polling behind it — Windows announces
+  every default moving, and that announcement is what Awoo answers. Selecting
+  a device in the flyout is how the remembered choice is changed, and with
+  the setting above on, the playback device and the communications device are
+  remembered and held separately. Unplug a remembered device and Awoo leaves
+  Windows' fallback alone until it is back, then takes it again on its own.
+  Turning the lock off reverts nothing ever after.
 - **Devices** — a switch for every connected output and input. Turn one off
   and it leaves the flyout: out of the Devices tab, and out of every
   application's **Play on** menu. The device itself is untouched — nothing is

@@ -302,7 +302,7 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
     {
         if (CanSetDefault && !_state.IsDefault)
         {
-            _audio.SetDefaultDevice(_state.Id, DefaultRole.All);
+            Pick(DefaultRole.All);
         }
     }
 
@@ -316,7 +316,7 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
     {
         if (CanSetDefault && !_state.IsDefault)
         {
-            _audio.SetDefaultDevice(_state.Id, DefaultRole.Audio);
+            Pick(DefaultRole.Audio);
         }
     }
 
@@ -328,8 +328,25 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
     {
         if (CanSetDefault && !_state.IsDefaultCommunications)
         {
-            _audio.SetDefaultDevice(_state.Id, DefaultRole.Communications);
+            Pick(DefaultRole.Communications);
         }
+    }
+
+    /// <summary>
+    /// Makes this device the default over one group of roles, as a choice the
+    /// user made rather than as a change to put back.
+    /// </summary>
+    /// <remarks>
+    /// The remembering goes first, and has to: the service publishes before
+    /// <see cref="IAudioService.SetDefaultDevice"/> returns, and
+    /// <see cref="DefaultDeviceLock"/> reads what is remembered as that lands
+    /// — told afterwards, it would have put the old device back before the new
+    /// one was on screen. It is nothing at all while the lock is off.
+    /// </remarks>
+    private void Pick(DefaultRole role)
+    {
+        _settings.RememberLockedDefault(_state.Kind, role, _state.Id);
+        _audio.SetDefaultDevice(_state.Id, role);
     }
 
     /// <summary>

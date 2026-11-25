@@ -75,6 +75,22 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Whether awoo holds Windows to the devices the user selected. Turning it
+    /// on takes the defaults as they stand right now as the selection to hold;
+    /// turning it off leaves every default exactly where it is and stops
+    /// putting anything back.
+    /// </summary>
+    public bool LockDefaultDevices
+    {
+        get => _settings.LockDefaultDevices;
+        set
+        {
+            _settings.LockDefaultDevices = value;
+            Raise(nameof(LockDefaultDevices));
+        }
+    }
+
+    /// <summary>
     /// The connected outputs, each with its visibility switch. Only what is
     /// plugged in: a device that is away cannot be pointed at, and its flag
     /// is kept rather than forgotten — plug it back in and it is here again,
