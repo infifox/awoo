@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The native tray TAP DLL. awoo loads it into Explorer to hide the stock
+  volume icon; see src/AwooTap/TrayTap.cpp.
+
+  x64 only, to match awoo (settled). There is no Win32/ARM configuration on
+  purpose: a build for another architecture would never be loaded, since it
+  has to match the Explorer it is injected into, and awoo itself ships x64.
+
+  The .NET SDK's MSBuild cannot drive a vcxproj, so this is built by Visual
+  Studio's MSBuild (located with vswhere) rather than by `dotnet build`. The
+  C# project runs that build as a step and copies the DLL beside awoo.exe.
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{7F3A2C14-9B5E-4D80-AE2B-6C1F0D3E5A90}</ProjectGuid>
+    <RootNamespace>AwooTap</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <!-- Match the Windows SDK the rest of the repo builds against. -->
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Release'">false</UseDebugLibraries>
+    <WholeProgramOptimization Condition="'$(Configuration)'=='Release'">true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+    <!-- The TAP is self-contained: it links the CRT statically so it carries
+         no VC++ runtime dependency into Explorer, where awoo cannot assume one
+         is installed. -->
+    <TargetName>AwooTap</TargetName>
+
+    <!-- Output set here rather than passed on the command line: a path passed
+         as /p:OutDir="...\" ends in \" , which the caller's shell reads as an
+         escaped quote. The C# project's BuildAwooTap target reads the DLL from
+         exactly these paths. -->
+    <OutDir>$(MSBuildProjectDirectory)\build\x64\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\build\obj\x64\$(Configuration)\</IntDir>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary Condition="'$(Configuration)'=='Debug'">MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary Condition="'$(Configuration)'=='Release'">MultiThreaded</RuntimeLibrary>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ConformanceMode>true</ConformanceMode>
+      <DebugInformationFormat Condition="'$(Configuration)'=='Debug'">ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <ModuleDefinitionFile>AwooTap.def</ModuleDefinitionFile>
+      <AdditionalDependencies>ole32.lib;oleaut32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="TrayTap.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="TrayTap.h" />
+    <ClInclude Include="AwooTapContract.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="AwooTap.def" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

@@ -90,6 +90,15 @@ internal sealed class TrayIconController : IDisposable
     /// <summary>Exit chosen from the right-click menu.</summary>
     internal event EventHandler? ExitRequested;
 
+    /// <summary>
+    /// Explorer has restarted and built a new notification area. H.NotifyIcon
+    /// puts awoo's own icon back by itself; this is for everything else that
+    /// was done to a taskbar which no longer exists — see
+    /// <see cref="SystemVolumeIconService.TaskbarRecreated"/>. Raised on the
+    /// UI thread, which is where the tray's message window pumps.
+    /// </summary>
+    internal event EventHandler? TaskbarRecreated;
+
     /// <summary>Puts the icon in the notification area.</summary>
     internal void Show()
     {
@@ -105,6 +114,7 @@ internal sealed class TrayIconController : IDisposable
 
         _messages = icon.MessageWindow;
         _messages.MouseEventReceived += OnTrayMouseEvent;
+        _messages.TaskbarCreated += OnTaskbarCreated;
     }
 
     public void Dispose()
@@ -122,6 +132,7 @@ internal sealed class TrayIconController : IDisposable
         if (_messages is not null)
         {
             _messages.MouseEventReceived -= OnTrayMouseEvent;
+            _messages.TaskbarCreated -= OnTaskbarCreated;
             _messages = null;
         }
 
@@ -147,6 +158,9 @@ internal sealed class TrayIconController : IDisposable
             _wheel?.PointerOverIcon(args.Point.X, args.Point.Y);
         }
     }
+
+    private void OnTaskbarCreated(object? sender, EventArgs args) =>
+        TaskbarRecreated?.Invoke(this, EventArgs.Empty);
 
     private void OnVolumeChanged(object? sender, PropertyChangedEventArgs args)
     {

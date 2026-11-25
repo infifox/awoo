@@ -84,6 +84,34 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool SetForegroundWindow(IntPtr hwnd);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWindow(IntPtr hwnd);
+
+    /// <summary>The thread that owns a window, and — the part awoo wants — the process behind it.</summary>
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
+    /// <summary>
+    /// Sends a window a message and waits — up to a limit — for it to be
+    /// handled, the reply in <paramref name="result"/>. Used to talk to the
+    /// tray TAP's window inside Explorer, where the reply is a small integer
+    /// that crosses the process boundary as is. Returns zero when the wait
+    /// gave up, which a plain SendMessage to a hung Explorer never does.
+    /// </summary>
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageTimeoutW", SetLastError = true)]
+    internal static partial IntPtr SendMessageTimeout(
+        IntPtr hwnd,
+        uint message,
+        IntPtr wParam,
+        IntPtr lParam,
+        uint flags,
+        uint timeoutMilliseconds,
+        out IntPtr result);
+
+    /// <summary>SMTO_ABORTIFHUNG — return at once if the window's thread is already hung.</summary>
+    internal const uint SMTO_ABORTIFHUNG = 0x0002;
+
     /// <summary>SWP_NOZORDER — leave the window where it is in the z-order.</summary>
     internal const uint SWP_NOZORDER = 0x0004;
 
@@ -106,6 +134,61 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool DestroyIcon(IntPtr icon);
+
+    /// <summary>DIB_RGB_COLORS — the header carries colours, not palette indices.</summary>
+    internal const uint DIB_RGB_COLORS = 0;
+
+    /// <summary>BI_RGB — uncompressed.</summary>
+    internal const uint BI_RGB = 0;
+
+    /// <remarks>
+    /// Only the header is passed where the API takes a BITMAPINFO: the colour
+    /// table after it is for palettes, and nothing here is under 16 bits.
+    /// </remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BITMAPINFOHEADER
+    {
+        public uint biSize;
+        public int biWidth;
+
+        /// <summary>Negative for a top-down bitmap, which is how rows are drawn.</summary>
+        public int biHeight;
+
+        public ushort biPlanes;
+        public ushort biBitCount;
+        public uint biCompression;
+        public uint biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public uint biClrUsed;
+        public uint biClrImportant;
+    }
+
+    /// <remarks><c>fIcon</c> is a BOOL, kept as an int so the struct stays blittable.</remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct ICONINFO
+    {
+        public int fIcon;
+        public int xHotspot;
+        public int yHotspot;
+        public IntPtr hbmMask;
+        public IntPtr hbmColor;
+    }
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr CreateDIBSection(IntPtr dc, ref BITMAPINFOHEADER header,
+        uint usage, out IntPtr bits, IntPtr section, uint offset);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr CreateBitmap(int width, int height,
+        uint planes, uint bitsPerPixel, [In] byte[] bits);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DeleteObject(IntPtr handle);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial IntPtr CreateIconIndirect(ref ICONINFO info);
 
     [LibraryImport("dwmapi.dll")]
     internal static partial int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
