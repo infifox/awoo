@@ -30,6 +30,9 @@ percentage and mute](docs/flyout-devices.png)
   volume, middle-click to mute.
 - **A tray icon that is the volume**, drawn from the system icon font, with
   the device and its percentage on hover.
+- **One speaker in the tray, not two** — a switch that takes Windows' own
+  volume icon out of the notification area while Awoo is running, and puts it
+  back when Awoo exits. Off by default.
 - **Starts with Windows**, on by default, with a switch to turn it off.
 - Volume caps at 100%: Awoo does not over-amplify. Windows' own volume-key
   OSD is left alone.
@@ -152,7 +155,7 @@ guess at the position while it is tucked away.
 
 ## Settings
 
-**Settings** on the icon's right-click menu opens a window with the three
+**Settings** on the icon's right-click menu opens a window with the four
 choices Awoo has:
 
 - **Volume step** — how far one notch of the wheel moves the volume, 1 to 25
@@ -161,6 +164,14 @@ choices Awoo has:
   turned off. It is an entry under the current user's `Run` key, and it is the
   same entry Task Manager's Startup tab lists: turn Awoo off there and the
   switch here agrees.
+- **Hide the Windows volume icon** — off by default. Turn it on and Windows'
+  own speaker leaves the notification area, so the tray has one volume icon
+  rather than two; exiting Awoo brings it back, and so does restarting
+  Explorer, after which Awoo hides it again. Windows 11 has no setting for
+  this, so Awoo does it by reaching into Explorer's taskbar directly — which
+  is why the switch is off until you ask for it, and why a Windows update
+  could put the icon out of reach. If that happens the switch says so and
+  nothing else about Awoo is affected.
 - **Devices** — a switch for every connected output and input. Turn one off
   and it leaves the flyout: out of the Devices tab, and out of every
   application's **Play on** menu. The device itself is untouched — nothing is
@@ -194,6 +205,15 @@ whether this machine has it to give. So the menu is read off the endpoint's
 own property store, where Windows publishes a record per format saying
 whether it is usable here and now — the property store is documented, the key
 is not.
+
+Hiding Windows' own volume icon is the same shape of bargain. Windows 11 has
+no setting, policy or registry value for it any more, so Awoo loads a small
+DLL of its own into Explorer through `InitializeXamlDiagnosticsEx` — the
+documented entry point Visual Studio's Live Visual Tree uses — walks the
+taskbar's XAML tree and collapses the icon it finds there. The API is
+documented; the tree is not. **A Windows update that rearranges the taskbar
+would stop the hide working**, which is why the switch is off by default and
+says so when it cannot do its job. Nothing else about Awoo depends on it.
 
 It would not take the rest with it. Where a build of Windows will not hand one
 over, Awoo goes quiet about that feature and nothing else is affected: the

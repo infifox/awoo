@@ -11,7 +11,7 @@
         <media:MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <!-- One page: the two settings awoo has, and the devices it will show.
+    <!-- One page: the settings awoo has, and the devices it will show.
          Everything else awoo could offer is either Windows' own setting or a
          decision the brief settled. -->
     <Grid Background="Transparent" Padding="24,20,24,24" RowSpacing="18">
@@ -50,6 +50,7 @@
         </Grid.Resources>
 
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -114,10 +115,50 @@
                 AutomationProperties.Name="Start with Windows" />
         </Grid>
 
+        <!-- Hiding Windows' own speaker, so the tray has one rather than two.
+             Off by default: it is done by reaching into Explorer, which is not
+             something to start doing to somebody who never asked. The note
+             under the caption is the whole of what awoo says when that stops
+             working — see SystemVolumeIconService. -->
+        <Grid Grid.Row="2" ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+                <TextBlock
+                    Text="Hide the Windows volume icon"
+                    Style="{ThemeResource BodyStrongTextBlockStyle}" />
+
+                <TextBlock
+                    Text="Takes Windows' own speaker out of the notification area while Awoo is running, and puts it back when Awoo exits."
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap" />
+
+                <TextBlock
+                    Text="Awoo can't hide it at the moment, most likely because a Windows update moved it out of reach."
+                    Margin="0,2,0,0"
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                    TextWrapping="Wrap"
+                    Visibility="{x:Bind ViewModel.HideIsNotWorking, Mode=OneWay}" />
+            </StackPanel>
+
+            <ToggleSwitch
+                x:Name="HideSystemVolumeIconSwitch"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                MinWidth="0"
+                IsOn="{x:Bind ViewModel.HideSystemVolumeIcon, Mode=TwoWay}"
+                AutomationProperties.Name="Hide the Windows volume icon" />
+        </Grid>
+
         <!-- Which devices the volume control lists. Everything plugged in is
              here: a device that is away cannot be pointed at, and it keeps
              whatever it was set to for when it comes back. -->
-        <StackPanel Grid.Row="2" Spacing="8">
+        <StackPanel Grid.Row="3" Spacing="8">
             <StackPanel Spacing="2">
                 <TextBlock
                     Text="Shown devices"

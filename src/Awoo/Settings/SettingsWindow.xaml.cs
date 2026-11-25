@@ -1,5 +1,6 @@
 using Awoo.Audio;
 using Awoo.Interop;
+using Awoo.Tray;
 using Awoo.ViewModels;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -35,11 +36,11 @@ public sealed partial class SettingsWindow : Window
 
     private bool _refitQueued;
 
-    internal SettingsWindow(SettingsService settings, IAudioService audio)
+    internal SettingsWindow(SettingsService settings, IAudioService audio, SystemVolumeIconService volumeIcon)
     {
         // Assigned before InitializeComponent: x:Bind reads the properties as
         // the generated bindings are built.
-        ViewModel = new SettingsViewModel(settings, audio);
+        ViewModel = new SettingsViewModel(settings, audio, volumeIcon);
         InitializeComponent();
 
         // For a Window root the XAML compiler wires x:Bind's first evaluation
@@ -67,6 +68,11 @@ public sealed partial class SettingsWindow : Window
         ViewModel.Outputs.CollectionChanged += (_, _) => QueueRefit();
         ViewModel.Inputs.CollectionChanged += (_, _) => QueueRefit();
 
+        // So is the note under the hide switch, which appears a second or two
+        // after the switch is turned on — by which time the window has been
+        // sized to a page that did not have it.
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+
         if (Content is FrameworkElement content)
         {
             // The placement above happens before the content is in the tree,
@@ -78,7 +84,11 @@ public sealed partial class SettingsWindow : Window
         // Nothing here outlives the window: the view model is listening to
         // the audio service, and a closed window's rows would be kept alive
         // by that alone.
-        Closed += (_, _) => ViewModel.Dispose();
+        Closed += (_, _) =>
+        {
+            ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            ViewModel.Dispose();
+        };
     }
 
     /// <summary>The settings, and the devices, as the window shows them.</summary>
@@ -160,6 +170,19 @@ public sealed partial class SettingsWindow : Window
             AppWindow.Move(centre
                 ? Centred(work, AppWindow.Size)
                 : KeptInside(work, AppWindow.Size, AppWindow.Position));
+        }
+    }
+
+    /// <summary>
+    /// The one property whose value changes how tall the page is: the note
+    /// under the hide switch, which is a line or two of text appearing and
+    /// disappearing between the switch above it and the device list below.
+    /// </summary>
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(SettingsViewModel.HideIsNotWorking))
+        {
+            QueueRefit();
         }
     }
 

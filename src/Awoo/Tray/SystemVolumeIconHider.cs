@@ -39,7 +39,8 @@ internal sealed class SystemVolumeIconHider
         /// <summary>
         /// The engine ran but found no volume icon to hide — the shape awoo
         /// expects has moved, most likely after a Windows update. awoo behaves
-        /// as if the setting were off; task 03 shows a quiet note.
+        /// as if the setting were off, and the settings window says so in a
+        /// note under the switch.
         /// </summary>
         NotFound,
 
@@ -74,16 +75,22 @@ internal sealed class SystemVolumeIconHider
         Guid tapClsid,
         [MarshalAs(UnmanagedType.LPWStr)] string? initializationData);
 
+    private readonly bool _pretendNothingFound;
+
     private IntPtr _window;
+
+    /// <param name="pretendNothingFound">
+    /// Answers every <see cref="Hide"/> with <see cref="HideOutcome.NotFound"/>
+    /// without touching Explorer. The dev-only
+    /// <c>--volume-icon-hide-not-found</c> switch passes this: the settings
+    /// window's "hiding isn't working" note is for the day a Windows update
+    /// moves the icon out of reach, and that day cannot be arranged on demand.
+    /// </param>
+    internal SystemVolumeIconHider(bool pretendNothingFound = false) =>
+        _pretendNothingFound = pretendNothingFound;
 
     /// <summary>The outcome of the last <see cref="Hide"/>.</summary>
     internal HideOutcome LastOutcome { get; private set; } = HideOutcome.NotAttempted;
-
-    /// <summary>
-    /// Whether the last attempt got as far as the engine running but matching
-    /// nothing — the signal task 03's "hide isn't working" note is for.
-    /// </summary>
-    internal bool EngineFoundNothing => LastOutcome == HideOutcome.NotFound;
 
     /// <summary>
     /// Injects the TAP into Explorer if it is not already there and asks it to
@@ -128,6 +135,11 @@ internal sealed class SystemVolumeIconHider
 
     private HideOutcome HideCore()
     {
+        if (_pretendNothingFound)
+        {
+            return HideOutcome.NotFound;
+        }
+
         // If the TAP is already standing — a second hide, or awoo never tore a
         // previous one down — just drive it.
         var existing = ResolveWindow();
