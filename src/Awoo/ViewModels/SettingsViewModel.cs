@@ -66,6 +66,22 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Whether the volume control sets the default audio device and the
+    /// default communications device apart. Turning it off moves no
+    /// defaults: the two markers become one again, and what calls were going
+    /// through they go on going through until something sets a default.
+    /// </summary>
+    public bool SplitDefaultRoles
+    {
+        get => _settings.SplitDefaultRoles;
+        set
+        {
+            _settings.SplitDefaultRoles = value;
+            Raise(nameof(SplitDefaultRoles));
+        }
+    }
+
+    /// <summary>
     /// Whether awoo hides Windows' own volume icon while it is running. Off by
     /// default; flipping it hides or restores the stock icon there and then.
     /// </summary>
@@ -80,6 +96,22 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
             // Turning it off takes the note with it immediately, rather than
             // leaving it up until the restore has been through Explorer.
             Raise(nameof(HideIsNotWorking));
+        }
+    }
+
+    /// <summary>
+    /// Whether awoo holds Windows to the devices the user selected. Turning it
+    /// on takes the defaults as they stand right now as the selection to hold;
+    /// turning it off leaves every default exactly where it is and stops
+    /// putting anything back.
+    /// </summary>
+    public bool LockDefaultDevices
+    {
+        get => _settings.LockDefaultDevices;
+        set
+        {
+            _settings.LockDefaultDevices = value;
+            Raise(nameof(LockDefaultDevices));
         }
     }
 
@@ -121,7 +153,16 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
         _volumeIcon.StateChanged -= OnVolumeIconStateChanged;
     }
 
-    private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices) => Apply(devices);
+    private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices)
+    {
+        // Only the list the service currently holds — a revert made from
+        // inside this event delivers the corrected list first and the stale
+        // one after it. DevicesViewModel says why in full.
+        if (ReferenceEquals(devices, _audio.Devices))
+        {
+            Apply(devices);
+        }
+    }
 
     private void OnVolumeIconStateChanged(object? sender, EventArgs args) => Raise(nameof(HideIsNotWorking));
 

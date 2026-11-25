@@ -277,7 +277,14 @@
 
                         <!-- A radio button is the Fluent answer to Plasma's
                              default-device marker: it shows which device is the
-                             default and sets it in the one click. -->
+                             default and sets it in the one click. The name is
+                             inside it, so the whole row is the click target.
+
+                             Collapsed, rather than absent, where the two
+                             defaults have been split: both layouts are in
+                             every row and one of them is always hidden,
+                             which is what lets the setting be turned over
+                             while the flyout is open. -->
                         <RadioButton
                             GroupName="{x:Bind GroupName}"
                             MinWidth="0"
@@ -287,6 +294,7 @@
                             HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch"
                             VerticalContentAlignment="Center"
+                            Visibility="{x:Bind IsNotSplit, Mode=OneWay}"
                             IsEnabled="{x:Bind CanSetDefault}"
                             IsChecked="{x:Bind IsDefault, Mode=OneWay}"
                             Checked="{x:Bind MakeDefault}"
@@ -301,6 +309,61 @@
                                 TextWrapping="NoWrap"
                                 MaxLines="1" />
                         </RadioButton>
+
+                        <!-- The same row with the two defaults set apart: a
+                             marker for what everything plays through, a
+                             marker for what calls go through, and the name
+                             beside them as a plain label — with two
+                             questions in the row, a click on the name could
+                             only answer one of them, so it answers neither.
+                             Nothing says which column is which but the
+                             tooltips: a pair of headers over every device
+                             list would be more furniture than the answer is
+                             worth. -->
+                        <Grid
+                            Margin="8,0,0,0"
+                            ColumnSpacing="8"
+                            VerticalAlignment="Center"
+                            Visibility="{x:Bind IsSplit, Mode=OneWay}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <RadioButton
+                                GroupName="{x:Bind AudioGroupName}"
+                                MinWidth="0"
+                                Padding="8,0,0,0"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                IsEnabled="{x:Bind CanSetDefault}"
+                                IsChecked="{x:Bind IsDefault, Mode=OneWay}"
+                                Checked="{x:Bind MakeDefaultAudio}"
+                                ToolTipService.ToolTip="{x:Bind DefaultAudioToolTip, Mode=OneWay}"
+                                AutomationProperties.Name="{x:Bind DefaultAudioAutomationName, Mode=OneWay}" />
+
+                            <RadioButton
+                                Grid.Column="1"
+                                GroupName="{x:Bind CommunicationsGroupName}"
+                                MinWidth="0"
+                                Padding="8,0,0,0"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                IsEnabled="{x:Bind CanSetDefault}"
+                                IsChecked="{x:Bind IsDefaultCommunications, Mode=OneWay}"
+                                Checked="{x:Bind MakeDefaultCommunications}"
+                                ToolTipService.ToolTip="{x:Bind DefaultCommunicationsToolTip, Mode=OneWay}"
+                                AutomationProperties.Name="{x:Bind DefaultCommunicationsAutomationName, Mode=OneWay}" />
+
+                            <TextBlock
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Text="{x:Bind Name, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="NoWrap"
+                                MaxLines="1" />
+                        </Grid>
 
                         <!-- What spatial sound this device is in. Hidden
                              outright on an input, and on an output with no

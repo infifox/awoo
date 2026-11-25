@@ -89,11 +89,12 @@ internal interface IAudioService : IDisposable
     void RefreshAppRoutes();
 
     /// <summary>
-    /// Makes one endpoint Windows' default for its kind, across all three
-    /// roles. Unknown ids are ignored, and so is a device that is already the
-    /// default.
+    /// Makes one endpoint Windows' default for its kind, over the roles
+    /// <paramref name="role"/> names — all three together, the audio pair, or
+    /// communications alone. Unknown ids are ignored, and so is a device that
+    /// already holds those roles.
     /// </summary>
-    void SetDefaultDevice(string deviceId);
+    void SetDefaultDevice(string deviceId, DefaultRole role);
 
     /// <summary>
     /// Puts one output into a spatial sound format, or turns spatial sound

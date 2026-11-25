@@ -54,6 +54,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid ColumnSpacing="20">
@@ -115,12 +117,68 @@
                 AutomationProperties.Name="Start with Windows" />
         </Grid>
 
+        <Grid Grid.Row="2" ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+                <TextBlock
+                    Text="Change default audio device and communications device independently"
+                    Style="{ThemeResource BodyStrongTextBlockStyle}"
+                    TextWrapping="Wrap" />
+
+                <TextBlock
+                    Text="Gives every device in the volume control two markers instead of one: the first sets the device everything plays through, the second the device calls go through. Turning this off again moves neither."
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+
+            <ToggleSwitch
+                x:Name="SplitRolesSwitch"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                MinWidth="0"
+                IsOn="{x:Bind ViewModel.SplitDefaultRoles, Mode=TwoWay}"
+                AutomationProperties.Name="Change default audio device and communications device independently" />
+        </Grid>
+
+        <Grid Grid.Row="3" ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+                <TextBlock
+                    Text="Prevent Windows from automatically switching my audio device"
+                    Style="{ThemeResource BodyStrongTextBlockStyle}"
+                    TextWrapping="Wrap" />
+
+                <TextBlock
+                    Text="Remembers the devices selected when this is turned on, and puts them back whenever anything else changes them — Windows switching to a device as it is plugged in, a driver, another app, or Windows' own sound settings. Pick devices in the volume control while this is on. A device that is unplugged is left to Windows' choice until it is back."
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+
+            <ToggleSwitch
+                x:Name="DeviceLockSwitch"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                MinWidth="0"
+                IsOn="{x:Bind ViewModel.LockDefaultDevices, Mode=TwoWay}"
+                AutomationProperties.Name="Prevent Windows from automatically switching my audio device" />
+        </Grid>
+
         <!-- Hiding Windows' own speaker, so the tray has one rather than two.
              Off by default: it is done by reaching into Explorer, which is not
              something to start doing to somebody who never asked. The note
              under the caption is the whole of what awoo says when that stops
              working — see SystemVolumeIconService. -->
-        <Grid Grid.Row="2" ColumnSpacing="20">
+        <Grid Grid.Row="4" ColumnSpacing="20">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -158,7 +216,7 @@
         <!-- Which devices the volume control lists. Everything plugged in is
              here: a device that is away cannot be pointed at, and it keeps
              whatever it was set to for when it comes back. -->
-        <StackPanel Grid.Row="3" Spacing="8">
+        <StackPanel Grid.Row="5" Spacing="8">
             <StackPanel Spacing="2">
                 <TextBlock
                     Text="Shown devices"

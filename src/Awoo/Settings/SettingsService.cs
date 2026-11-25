@@ -1,3 +1,5 @@
+using Awoo.Audio;
+
 namespace Awoo.Settings;
 
 /// <summary>
@@ -34,6 +36,23 @@ internal sealed class SettingsService
     internal event EventHandler? HiddenDevicesChanged;
 
     /// <summary>
+    /// Raised when the default audio device and the default communications
+    /// device have been split apart, or put back together. The Devices tab's
+    /// rows listen to it for the same reason they listen to
+    /// <see cref="HiddenDevicesChanged"/>: an open flyout redraws rather than
+    /// waiting for awoo to be restarted.
+    /// </summary>
+    internal event EventHandler? SplitDefaultRolesChanged;
+
+    /// <summary>
+    /// Raised when the default-device lock has been turned on or off. What
+    /// <see cref="DefaultDeviceLock"/> listens to: turning it on is also when
+    /// the devices to hold are taken down, and that is the lock's reading of
+    /// the machine rather than this object's.
+    /// </summary>
+    internal event EventHandler? LockDefaultDevicesChanged;
+
+    /// <summary>
     /// Raised when <see cref="HideSystemVolumeIcon"/> has been turned on or
     /// off. What <see cref="Tray.SystemVolumeIconService"/> listens to: the
     /// switch hides or restores the stock icon as it is flipped, not at the
@@ -54,6 +73,54 @@ internal sealed class SettingsService
             VolumeStep = Math.Clamp(value, AppSettings.MinVolumeStep, AppSettings.MaxVolumeStep),
         });
     }
+
+    /// <summary>
+    /// Whether the Devices tab sets the default audio device and the default
+    /// communications device apart, a marker each, rather than moving all
+    /// three of Windows' roles with one. Turning it off moves no defaults:
+    /// the two markers collapse back into one, and the next click on one sets
+    /// all three roles again.
+    /// </summary>
+    internal bool SplitDefaultRoles
+    {
+        get => _stored.SplitDefaultRoles;
+        set
+        {
+            if (value == _stored.SplitDefaultRoles)
+            {
+                return;
+            }
+
+            Store(_stored with { SplitDefaultRoles = value });
+            SplitDefaultRolesChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Whether awoo holds Windows to the devices the user selected. Turning it
+    /// on is what captures them — <see cref="DefaultDeviceLock"/> answers the
+    /// event with the defaults as they stand. Turning it off leaves every
+    /// default where it is and reverts nothing afterwards; the remembered ids
+    /// stay in the file, and the next time it is turned on they are taken
+    /// again.
+    /// </summary>
+    internal bool LockDefaultDevices
+    {
+        get => _stored.LockDefaultDevices;
+        set
+        {
+            if (value == _stored.LockDefaultDevices)
+            {
+                return;
+            }
+
+            Store(_stored with { LockDefaultDevices = value });
+            LockDefaultDevicesChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The devices the lock is holding Windows to.</summary>
+    internal LockedDefaults LockedDefaults => _stored.LockedDefaults;
 
     /// <summary>Whether Windows starts awoo at sign-in. Read from, and written to, the Run key.</summary>
     internal bool StartWithWindows
@@ -116,6 +183,34 @@ internal sealed class SettingsService
 
         Store(_stored with { HiddenDeviceIds = [.. _hidden] });
         HiddenDevicesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Takes down the whole selection the lock is to hold. What turning the
+    /// lock on does, once the lock has read where the defaults stand.
+    /// </summary>
+    internal void RememberLockedDefaults(LockedDefaults defaults) => Store(_stored.With(defaults));
+
+    /// <summary>
+    /// Remembers one device as the lock's choice for every role
+    /// <paramref name="role"/> covers — what a pick in awoo's flyout does, so
+    /// that the guard lets the pick stand instead of putting the old device
+    /// back.
+    /// </summary>
+    /// <remarks>
+    /// Nothing at all while the lock is off: there is no selection being held
+    /// then, and remembering one would have the file fill with devices nobody
+    /// asked awoo to keep. Turning the lock on captures the defaults as they
+    /// are at that moment instead.
+    /// </remarks>
+    internal void RememberLockedDefault(DeviceKind kind, DefaultRole role, string deviceId)
+    {
+        if (!_stored.LockDefaultDevices || string.IsNullOrWhiteSpace(deviceId))
+        {
+            return;
+        }
+
+        Store(_stored.With(_stored.LockedDefaults.With(kind, role, deviceId)));
     }
 
     /// <summary>

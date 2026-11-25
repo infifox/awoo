@@ -31,6 +31,7 @@ public partial class App : Application
 
     private AudioService? _audio;
     private SettingsService? _settings;
+    private DefaultDeviceLock? _deviceLock;
     private FlyoutWindow? _flyout;
     private SettingsWindow? _settingsWindow;
     private TrayIconController? _tray;
@@ -75,6 +76,12 @@ public partial class App : Application
         _settings.ApplyFirstRunDefaults();
 
         _audio = new AudioService(dispatch);
+
+        // Nothing of the UI's: it listens to the service and puts back any
+        // default something else moved, which has to happen whether or not a
+        // window is open to see it.
+        _deviceLock = new DefaultDeviceLock(_audio, _settings);
+
         var volume = new VolumeViewModel(_audio);
         var devices = new DevicesViewModel(_audio, _settings);
         var apps = new AppsViewModel(_audio, _settings);
@@ -147,6 +154,11 @@ public partial class App : Application
 
         _flyout?.CloseForExit();
         _flyout = null;
+
+        // Before the service it listens to, so no revert is attempted on the
+        // way out.
+        _deviceLock?.Dispose();
+        _deviceLock = null;
 
         _audio?.Dispose();
         _audio = null;

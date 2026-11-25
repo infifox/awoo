@@ -92,6 +92,17 @@ way to change it: selecting it makes that device the default for all three of
 Windows' roles (playback, multimedia and calls) on the spot. Plugging a device
 in or pulling it out adds or removes its row while the flyout is open.
 
+Turn **Change default audio device and communications device independently**
+on in settings and each row has two markers instead: the first is the device
+everything plays through, the second the device calls go through — the same
+division Windows' own Sound settings draws. With two questions in the row the
+name is a plain label rather than a click target, and hovering a marker says
+which of the two it is.
+
+With **Prevent Windows from automatically switching my audio device** on, the
+markers here are also the only thing that moves a default: Awoo puts back
+anything else that moves one, Windows' own Sound settings included.
+
 An output that has spatial sound carries a dropdown to the right of its name:
 *Off* and then every format that device can be put into — Windows Sonic for
 Headphones, Dolby Atmos, DTS, whichever of them this machine has and this
@@ -155,7 +166,7 @@ guess at the position while it is tucked away.
 
 ## Settings
 
-**Settings** on the icon's right-click menu opens a window with the four
+**Settings** on the icon's right-click menu opens a window with the six
 choices Awoo has:
 
 - **Volume step** — how far one notch of the wheel moves the volume, 1 to 25
@@ -164,6 +175,25 @@ choices Awoo has:
   turned off. It is an entry under the current user's `Run` key, and it is the
   same entry Task Manager's Startup tab lists: turn Awoo off there and the
   switch here agrees.
+- **Change default audio device and communications device independently** —
+  off by default. On, every device row in the Devices tab gets two markers:
+  the first moves the playback and multimedia roles, which is what Windows'
+  own Sound settings calls the default device, and the second moves the
+  communications role alone. Turning it off again moves neither — the markers
+  become one again, and the next device selected takes all three roles as
+  before.
+- **Prevent Windows from automatically switching my audio device** — off by
+  default. Turning it on remembers whichever output and input are default at
+  that moment, and from then on anything that moves a default from outside
+  Awoo is put straight back: Windows switching to a device as it is plugged
+  in, a driver, another application, or Windows' own Sound settings page,
+  which this does override. There is no polling behind it — Windows announces
+  every default moving, and that announcement is what Awoo answers. Selecting
+  a device in the flyout is how the remembered choice is changed, and with
+  the setting above on, the playback device and the communications device are
+  remembered and held separately. Unplug a remembered device and Awoo leaves
+  Windows' fallback alone until it is back, then takes it again on its own.
+  Turning the lock off reverts nothing ever after.
 - **Hide the Windows volume icon** — off by default. Turn it on and Windows'
   own speaker leaves the notification area, so the tray has one volume icon
   rather than two; exiting Awoo brings it back, and so does restarting
