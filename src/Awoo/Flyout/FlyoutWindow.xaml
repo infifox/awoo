@@ -238,10 +238,11 @@
                     <RadioButton
                         GroupName="{x:Bind GroupName}"
                         MinWidth="0"
-                        Margin="0"
+                        Margin="8,0,0,0"
                         Padding="8,0,0,0"
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Center"
                         IsEnabled="{x:Bind CanSetDefault}"
                         IsChecked="{x:Bind IsDefault, Mode=OneWay}"
                         Checked="{x:Bind MakeDefault}"
@@ -257,10 +258,11 @@
                             MaxLines="1" />
                     </RadioButton>
 
-                    <!-- Flush left, so the mute button's edge lines up with
-                         the radio button above it rather than with the name,
-                         the way the Windows volume flyout stacks them. -->
-                    <Grid Grid.Row="1" ColumnSpacing="10" Height="32">
+                    <!-- Indented like the radio button above it, so the mute
+                         button's edge lines up with the radio rather than
+                         with the name, the way the Windows volume flyout
+                         stacks them. -->
+                    <Grid Grid.Row="1" Margin="8,0,0,0" ColumnSpacing="10" Height="32">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -309,10 +311,11 @@
                 <RadioButton
                     GroupName="{x:Bind GroupName}"
                     MinWidth="0"
-                    Margin="0"
+                    Margin="8,0,0,0"
                     Padding="8,0,0,0"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Center"
                     IsChecked="{x:Bind IsSelected, Mode=OneWay}"
                     Checked="{x:Bind Choose}"
                     AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
