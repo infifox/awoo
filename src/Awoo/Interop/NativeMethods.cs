@@ -135,6 +135,61 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool DestroyIcon(IntPtr icon);
 
+    /// <summary>DIB_RGB_COLORS — the header carries colours, not palette indices.</summary>
+    internal const uint DIB_RGB_COLORS = 0;
+
+    /// <summary>BI_RGB — uncompressed.</summary>
+    internal const uint BI_RGB = 0;
+
+    /// <remarks>
+    /// Only the header is passed where the API takes a BITMAPINFO: the colour
+    /// table after it is for palettes, and nothing here is under 16 bits.
+    /// </remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BITMAPINFOHEADER
+    {
+        public uint biSize;
+        public int biWidth;
+
+        /// <summary>Negative for a top-down bitmap, which is how rows are drawn.</summary>
+        public int biHeight;
+
+        public ushort biPlanes;
+        public ushort biBitCount;
+        public uint biCompression;
+        public uint biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public uint biClrUsed;
+        public uint biClrImportant;
+    }
+
+    /// <remarks><c>fIcon</c> is a BOOL, kept as an int so the struct stays blittable.</remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct ICONINFO
+    {
+        public int fIcon;
+        public int xHotspot;
+        public int yHotspot;
+        public IntPtr hbmMask;
+        public IntPtr hbmColor;
+    }
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr CreateDIBSection(IntPtr dc, ref BITMAPINFOHEADER header,
+        uint usage, out IntPtr bits, IntPtr section, uint offset);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr CreateBitmap(int width, int height,
+        uint planes, uint bitsPerPixel, [In] byte[] bits);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DeleteObject(IntPtr handle);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial IntPtr CreateIconIndirect(ref ICONINFO info);
+
     [LibraryImport("dwmapi.dll")]
     internal static partial int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 

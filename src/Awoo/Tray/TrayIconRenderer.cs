@@ -35,13 +35,20 @@ internal static class TrayIconRenderer
     private static readonly Color LightTaskbar = Color.FromArgb(255, 0, 0, 0);
 
     /// <summary>
-    /// How far the ghosted waves carry: a quarter of the way from the
-    /// taskbar to the glyph, measured off the tray's own speaker. One number
-    /// for both themes, because an alpha this low lands the same distance
-    /// from a dark background as from a light one. A constant rather than a
-    /// setting, deliberately.
+    /// How far the ghosted waves carry: a fifth of the way from the taskbar
+    /// to the glyph, which is where the tray's own speaker draws the waves
+    /// above its level. One number for both themes, because an alpha this low
+    /// lands the same distance from a dark background as from a light one. A
+    /// constant rather than a setting, deliberately.
     /// </summary>
-    private const int GhostAlpha = 60;
+    /// <remarks>
+    /// The number is the alpha one fill lays down, not the strength the waves
+    /// end up at: they are filled twice like the glyph, so 27 of 255 — a
+    /// coverage of 0.106 — comes out at 0.20, which is what the tray's own
+    /// speaker measures for the waves above its level. Tuned against that
+    /// icon, so it moves if the painting does.
+    /// </remarks>
+    private const int GhostAlpha = 27;
 
     /// <summary>
     /// An icon for <paramref name="level"/>, sized for the notification area.
@@ -59,9 +66,18 @@ internal static class TrayIconRenderer
             colour,
             Color.FromArgb(GhostAlpha, colour));
 
+        // Built by hand rather than with Bitmap.GetHicon, which flattens the
+        // alpha the glyph was drawn with — see AlphaIcon, where the numbers
+        // are. Where GDI will not make one, the flattened icon is still a
+        // better tray than no tray at all.
+        var handle = AlphaIcon.From(bitmap);
+        if (handle == IntPtr.Zero)
+        {
+            handle = bitmap.GetHicon();
+        }
+
         // Icon.FromHandle does not take ownership of the handle, so the
         // handle has to be carried alongside the icon and destroyed with it.
-        var handle = bitmap.GetHicon();
         return new RenderedIcon(Icon.FromHandle(handle), handle);
     }
 

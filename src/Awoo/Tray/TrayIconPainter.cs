@@ -15,6 +15,25 @@ namespace Awoo.Tray;
 /// </remarks>
 internal static class TrayIconPainter
 {
+    /// <summary>How many times the outline is filled.</summary>
+    /// <remarks>
+    /// Twice. One fill of the designer's outline measures 1.52px of stem
+    /// where the tray's own speaker measures 1.75, so the glyph reads lighter
+    /// than the icons beside it however faithfully it is drawn. A second fill
+    /// of the same path changes nothing inside the glyph, where the first is
+    /// already solid; it strengthens the antialiased edge alone, taking a
+    /// pixel at <c>c</c> to <c>1-(1-c)²</c>. That is where the weight is at
+    /// this size, and it takes the stem to 1.76 against the tray's 1.75.
+    ///
+    /// Both of the obvious ways to add weight overshoot instead. A pen drawn
+    /// over the fill does, because GDI+ renders any sub-pixel pen as a
+    /// hairline and adds about half a pixel whatever width it is told; and
+    /// <c>Widen</c>, which puts the stroke into the geometry where there is
+    /// no hairline rule to round it up, lands on 2.00px for every width from
+    /// 0.15 upward just the same.
+    /// </remarks>
+    private const int Fills = 2;
+
     /// <summary>
     /// An icon-sized bitmap holding <paramref name="glyph"/>, with
     /// <paramref name="ghost"/> faintly behind it. The caller owns it.
@@ -101,6 +120,9 @@ internal static class TrayIconPainter
         // with no line-spacing allowance to take off it.
         path.AddString(glyph, family, (int)FontStyle.Regular, size, PointF.Empty, format);
 
-        graphics.FillPath(brush, path);
+        for (var pass = 0; pass < Fills; pass++)
+        {
+            graphics.FillPath(brush, path);
+        }
     }
 }
