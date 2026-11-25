@@ -94,4 +94,27 @@ internal interface IAudioService : IDisposable
     /// default.
     /// </summary>
     void SetDefaultDevice(string deviceId);
+
+    /// <summary>
+    /// Puts one output into a spatial sound format, or turns spatial sound
+    /// off there when <paramref name="formatId"/> is null. Ignored for a
+    /// device whose <see cref="AudioDeviceState.Spatial"/> has nothing to
+    /// offer, and for unknown ids.
+    /// </summary>
+    /// <returns>
+    /// A task that completes once Windows has answered and the endpoint has
+    /// been read back — so a caller that awaits it is looking at what the
+    /// device took, which is not always what it was asked for. The answer
+    /// itself is in <see cref="Devices"/> rather than in the task: a format
+    /// Windows declined leaves the endpoint where it was.
+    /// </returns>
+    Task SetDeviceSpatialFormat(string deviceId, Guid? formatId);
+
+    /// <summary>
+    /// Re-reads every output's spatial sound. Windows does announce this one
+    /// changing, unlike an application's route, so this is belt and braces
+    /// for the moment a stale menu would be seen: the flyout calls it as it
+    /// opens, beside <see cref="RefreshAppRoutes"/>.
+    /// </summary>
+    void RefreshSpatialFormats();
 }

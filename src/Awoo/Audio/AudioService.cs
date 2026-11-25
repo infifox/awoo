@@ -33,6 +33,7 @@ internal sealed class AudioService : IAudioService
     private readonly IMMDeviceEnumerator _enumerator;
     private readonly IPolicyConfig? _policyConfig;
     private readonly AppRouting _routing;
+    private readonly SpatialSound _spatial;
     private readonly DeviceNotifications _deviceNotifications;
     private readonly AudioSessionIndex _sessions;
 
@@ -59,6 +60,10 @@ internal sealed class AudioService : IAudioService
         // without rather than a failure to start.
         _policyConfig = CoreAudio.CreatePolicyConfig();
         _routing = AppRouting.Create();
+
+        // Documented, unlike the two above, but just as optional: a Windows
+        // without it is one where no device offers spatial sound.
+        _spatial = SpatialSound.Create();
 
         _deviceNotifications = new DeviceNotifications(this);
         _ = _enumerator.RegisterEndpointNotificationCallback(_deviceNotifications);
@@ -126,6 +131,33 @@ internal sealed class AudioService : IAudioService
     public void SetAppDevice(string appId, string? deviceId) => _sessions.SetDevice(appId, deviceId);
 
     public void RefreshAppRoutes() => _sessions.RefreshRoutes();
+
+    public Task SetDeviceSpatialFormat(string deviceId, Guid? formatId)
+    {
+        if (_disposed || !_endpoints.TryGetValue(deviceId, out var endpoint) || !endpoint.Spatial.CanSet)
+        {
+            return Task.CompletedTask;
+        }
+
+        var settled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = Settle(endpoint, formatId, settled);
+        return settled.Task;
+    }
+
+    public void RefreshSpatialFormats()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var endpoint in _endpoints.Values)
+        {
+            ReadSpatial(endpoint);
+        }
+
+        Publish();
+    }
 
     public void SetDefaultDevice(string deviceId)
     {
@@ -269,6 +301,7 @@ internal sealed class AudioService : IAudioService
         var endpoint = new Endpoint(this, device, volume, id, kind, FriendlyName(device, kind));
         _ = volume.RegisterControlChangeNotify(endpoint);
         Read(endpoint);
+        ReadSpatial(endpoint);
 
         // What this endpoint is playing or recording, for the Applications tab.
         _sessions.Attach(device, id, kind);
@@ -293,6 +326,39 @@ internal sealed class AudioService : IAudioService
         {
             endpoint.IsMuted = muted;
         }
+    }
+
+    /// <summary>Re-reads what spatial sound an endpoint offers and is in.</summary>
+    private void ReadSpatial(Endpoint endpoint) =>
+        endpoint.Spatial = _spatial.Read(endpoint.Device, endpoint.Id, endpoint.Kind);
+
+    /// <summary>
+    /// Puts one endpoint into a spatial format and publishes what it took.
+    /// </summary>
+    /// <remarks>
+    /// The one call in this service that cannot be made and read back in a
+    /// breath: Windows answers this one asynchronously, and this service's
+    /// thread is the UI thread, so waiting for it here would stop the app
+    /// rather than the call. The wait happens off the thread and the answer
+    /// is posted back onto it, which is also what keeps the endpoint cache
+    /// touched from one thread like everything else.
+    /// </remarks>
+    private async Task Settle(Endpoint endpoint, Guid? formatId, TaskCompletionSource settled)
+    {
+        // The answer is deliberately dropped: what the endpoint reads back as
+        // is the truth, and a format Windows declined leaves it where it was.
+        _ = await _spatial.SetAsync(endpoint.Id, formatId).ConfigureAwait(false);
+
+        _dispatch(() =>
+        {
+            if (!_disposed)
+            {
+                ReadSpatial(endpoint);
+                Publish();
+            }
+
+            settled.SetResult();
+        });
     }
 
     private void SetVolume(Endpoint endpoint, int percent)
@@ -335,7 +401,8 @@ internal sealed class AudioService : IAudioService
                 endpoint.Kind,
                 endpoint.Percent,
                 endpoint.IsMuted,
-                endpoint.Id == DefaultIdFor(endpoint.Kind)))
+                endpoint.Id == DefaultIdFor(endpoint.Kind),
+                endpoint.Spatial))
             .ToArray();
 
         var header = DefaultOutput() is { } output
@@ -382,6 +449,22 @@ internal sealed class AudioService : IAudioService
         }
 
         endpoint.Name = FriendlyName(endpoint.Device, endpoint.Kind);
+        Publish();
+    }
+
+    /// <summary>
+    /// Takes one endpoint's spatial sound again, because Windows said it
+    /// moved — awoo's own write, Settings', or a provider being installed or
+    /// taken away.
+    /// </summary>
+    private void RefreshSpatialOf(string deviceId)
+    {
+        if (_disposed || !_endpoints.TryGetValue(deviceId, out var endpoint))
+        {
+            return;
+        }
+
+        ReadSpatial(endpoint);
         Publish();
     }
 
@@ -469,6 +552,13 @@ internal sealed class AudioService : IAudioService
 
         internal bool IsMuted { get; set; }
 
+        /// <summary>
+        /// What spatial sound this endpoint offers and is in. Cached rather
+        /// than read on every publish: a slider drag publishes dozens of
+        /// times a second, and this costs a property store each time.
+        /// </summary>
+        internal SpatialState Spatial { get; set; } = SpatialState.None;
+
         public int OnNotify(IntPtr notificationData)
         {
             if (notificationData == IntPtr.Zero)
@@ -508,6 +598,10 @@ internal sealed class AudioService : IAudioService
             if (key.Matches(CoreAudio.DeviceFriendlyName))
             {
                 owner._dispatch(() => owner.RefreshNameOf(deviceId));
+            }
+            else if (SpatialSound.Announces(key))
+            {
+                owner._dispatch(() => owner.RefreshSpatialOf(deviceId));
             }
 
             return CoreAudio.S_OK;
