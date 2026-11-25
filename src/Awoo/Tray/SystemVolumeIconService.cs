@@ -40,6 +40,21 @@ internal sealed class SystemVolumeIconService : IDisposable
     /// </summary>
     private static readonly TimeSpan ShutdownDrain = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// When to look again after an attempt that did not get the icon hidden.
+    /// The injected DLL keeps watching the tree and hides the icon when it
+    /// turns up, which on a slow taskbar rebuild is after the attempt has
+    /// already answered not-found — so without these the note would say awoo
+    /// cannot hide an icon that is in fact hidden. Bounded: once they are
+    /// spent, a genuine not-found stands until the next trigger.
+    /// </summary>
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(40),
+    ];
+
     private readonly SettingsService _settings;
     private readonly SystemVolumeIconHider _hider;
     private readonly Action<Action> _dispatch;
@@ -49,6 +64,9 @@ internal sealed class SystemVolumeIconService : IDisposable
     private bool _pending;
     private bool _running;
     private bool _stopped;
+
+    /// <summary>How many of <see cref="RetryDelays"/> have been spent since the last trigger.</summary>
+    private int _retriesUsed;
 
     /// <summary>Read on the UI thread, written on the worker.</summary>
     private volatile bool _notWorking;
@@ -89,7 +107,11 @@ internal sealed class SystemVolumeIconService : IDisposable
     /// with the setting off: an awoo that crashed left its DLL hiding the icon
     /// inside Explorer, and this is where that is put right.
     /// </summary>
-    internal void Start() => Settle();
+    internal void Start()
+    {
+        RestartRetries();
+        Settle();
+    }
 
     /// <summary>
     /// Explorer has restarted, so the tray is new, the injected DLL died with
@@ -103,6 +125,7 @@ internal sealed class SystemVolumeIconService : IDisposable
             return;
         }
 
+        RestartRetries();
         _ = Task.Delay(TaskbarSettleDelay).ContinueWith(_ => Settle(), TaskScheduler.Default);
     }
 
@@ -147,6 +170,7 @@ internal sealed class SystemVolumeIconService : IDisposable
         // is now the last switch position's. So the note goes before the new
         // attempt starts, rather than carrying over to it.
         SetNotWorking(false);
+        RestartRetries();
         Settle();
     }
 
@@ -193,15 +217,54 @@ internal sealed class SystemVolumeIconService : IDisposable
 
             if (wanted)
             {
-                _hider.Hide();
+                var outcome = _hider.Hide();
+                Report(wanted);
+
+                // Anything short of hidden gets looked at again: the DLL may
+                // hide the icon moments after the attempt gave up on it, and
+                // the re-run — a cheap re-send to the window already standing
+                // — is what clears the note when it does.
+                if (outcome != SystemVolumeIconHider.HideOutcome.Hidden)
+                {
+                    ScheduleRetry();
+                }
             }
             else
             {
                 _hider.Restore();
+                Report(wanted);
+            }
+        }
+    }
+
+    /// <summary>A fresh trigger starts the retry ladder over.</summary>
+    private void RestartRetries()
+    {
+        lock (_gate)
+        {
+            _retriesUsed = 0;
+        }
+    }
+
+    /// <summary>
+    /// Has the state looked at again after the next of <see cref="RetryDelays"/>,
+    /// if any are left since the last trigger.
+    /// </summary>
+    private void ScheduleRetry()
+    {
+        TimeSpan delay;
+        lock (_gate)
+        {
+            if (_stopped || _retriesUsed >= RetryDelays.Length)
+            {
+                return;
             }
 
-            Report(wanted);
+            delay = RetryDelays[_retriesUsed];
+            _retriesUsed++;
         }
+
+        _ = Task.Delay(delay).ContinueWith(_ => Settle(), TaskScheduler.Default);
     }
 
     /// <summary>What the attempt just made came to, as the note reads it.</summary>
