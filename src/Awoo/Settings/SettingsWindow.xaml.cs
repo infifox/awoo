@@ -69,9 +69,9 @@ public sealed partial class SettingsWindow : Window
 
         if (Content is FrameworkElement content)
         {
-            // The measurement above is taken before anything has been laid
-            // out, so the device rows an ItemsRepeater makes are not there
-            // yet to be measured. This is the pass that has them.
+            // The placement above happens before the content is in the tree,
+            // so it cannot be measured yet (see ContentHeightDips). This is
+            // the pass that sizes the window to it.
             content.Loaded += (_, _) => Place();
         }
 
@@ -195,13 +195,20 @@ public sealed partial class SettingsWindow : Window
             return MinHeightDips;
         }
 
-        if (content.IsLoaded)
+        if (!content.IsLoaded)
         {
-            // Laid out before it is measured: the device rows are an
-            // ItemsRepeater's, and one it has not realised yet is not there
-            // to be measured.
-            content.UpdateLayout();
+            // Not measured at all until it is in the window's tree. An
+            // ItemsRepeater measured outside the live tree throws "Element is
+            // already the child of another element" — uncaught, from the
+            // constructor, which took Awoo down every time Settings was
+            // opened. The window opens at the floor and Loaded sizes it.
+            return MinHeightDips;
         }
+
+        // Laid out before it is measured: the device rows are an
+        // ItemsRepeater's, and one it has not realised yet is not there to be
+        // measured.
+        content.UpdateLayout();
 
         content.Measure(new Windows.Foundation.Size(WidthDips, double.PositiveInfinity));
         return Math.Max(content.DesiredSize.Height, MinHeightDips);
