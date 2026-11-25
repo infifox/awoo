@@ -53,7 +53,11 @@
                  looser than its left. -->
             <Style x:Key="FlyoutTabItemStyle" TargetType="SelectorBarItem">
                 <!-- Not the stock null: a null background is not hit-tested,
-                     which is what kept the click target down to the label. -->
+                     which is what kept the click target down to the label.
+                     Transparent and nothing else, though: the states below
+                     answer the pointer by recolouring the label and leave the
+                     background where it is, which is how this switcher has
+                     always read. -->
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{ThemeResource SelectorBarItemForeground}" />
                 <Setter Property="Padding" Value="12,0,12,7" />
@@ -84,7 +88,6 @@
 
                                         <VisualState x:Name="UnselectedPointerOver">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                             </VisualState.Setters>
@@ -92,7 +95,6 @@
 
                                         <VisualState x:Name="UnselectedPressed">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                             </VisualState.Setters>
@@ -118,7 +120,6 @@
 
                                         <VisualState x:Name="SelectedPointerOver">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                             </VisualState.Setters>
@@ -134,7 +135,6 @@
 
                                         <VisualState x:Name="SelectedPressed">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                             </VisualState.Setters>
