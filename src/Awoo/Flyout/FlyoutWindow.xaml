@@ -38,6 +38,200 @@
             <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{ThemeResource TextFillColorPrimary}" />
             <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="{ThemeResource TextFillColorSecondary}" />
 
+            <!-- The switcher's two items, re-templated. The stock
+                 SelectorBarItem lays its label out in an Auto-width column
+                 and gives its root no background, so an item handed half the
+                 bar keeps the label at the left of that half and the rest of
+                 the half is neither centred under the label nor clickable.
+                 A star column and a background of its own fix both; the
+                 parts, the state names and the pill under the label are
+                 WinUI's own, so the switcher still reads as a SelectorBar.
+
+                 The stock 10 of top padding goes with it: the flyout's own
+                 12 is what the gap above the labels should read as, and the
+                 two of them stacked are what made the top of the flyout sit
+                 looser than its left. -->
+            <Style x:Key="FlyoutTabItemStyle" TargetType="SelectorBarItem">
+                <!-- Not the stock null: a null background is not hit-tested,
+                     which is what kept the click target down to the label. -->
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{ThemeResource SelectorBarItemForeground}" />
+                <Setter Property="Padding" Value="12,0,12,7" />
+                <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="FocusVisualMargin" Value="{ThemeResource SelectorBarItemFocusVisualMargin}" />
+                <!-- The property's own default is false, so without this the
+                     keyboard's focus rectangle is never drawn at all. -->
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="FontFamily" Value="{ThemeResource ContentControlThemeFontFamily}" />
+                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="FontSize" Value="{ThemeResource ControlContentThemeFontSize}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="SelectorBarItem">
+                            <Grid
+                                x:Name="PART_ContainerRoot"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                RowDefinitions="Auto,Auto"
+                                ColumnDefinitions="Auto,*">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CombinedStates">
+                                        <VisualState x:Name="UnselectedNormal" />
+
+                                        <VisualState x:Name="UnselectedPointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                                <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
+                                                <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+
+                                        <VisualState x:Name="UnselectedPressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                                <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
+                                                <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+
+                                        <VisualState x:Name="SelectedNormal">
+                                            <!-- The same brush as at rest in light and dark, but the
+                                                 system highlight colour in high contrast — where it is
+                                                 what says which tab is selected. -->
+                                            <VisualState.Setters>
+                                                <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundSelected}" />
+                                                <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundSelected}" />
+                                            </VisualState.Setters>
+                                            <Storyboard>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PillTransform" Storyboard.TargetProperty="ScaleX">
+                                                    <SplineDoubleKeyFrame KeyTime="0:0:0.167" Value="4" KeySpline="0,0,0,1" />
+                                                </DoubleAnimationUsingKeyFrames>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PART_SelectionVisual" Storyboard.TargetProperty="Opacity">
+                                                    <SplineDoubleKeyFrame KeyTime="0:0:0.167" Value="1" KeySpline="0,0,0,1" />
+                                                </DoubleAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+
+                                        <VisualState x:Name="SelectedPointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                                <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
+                                                <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
+                                            </VisualState.Setters>
+                                            <Storyboard>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PillTransform" Storyboard.TargetProperty="ScaleX">
+                                                    <SplineDoubleKeyFrame KeyTime="0:0:0.167" Value="4" KeySpline="0,0,0,1" />
+                                                </DoubleAnimationUsingKeyFrames>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PART_SelectionVisual" Storyboard.TargetProperty="Opacity">
+                                                    <SplineDoubleKeyFrame KeyTime="0:0:0.167" Value="1" KeySpline="0,0,0,1" />
+                                                </DoubleAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+
+                                        <VisualState x:Name="SelectedPressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                                <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
+                                                <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
+                                            </VisualState.Setters>
+                                            <Storyboard>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PillTransform" Storyboard.TargetProperty="ScaleX">
+                                                    <SplineDoubleKeyFrame KeyTime="0:0:0.167" Value="4" KeySpline="0,0,0,1" />
+                                                </DoubleAnimationUsingKeyFrames>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PART_SelectionVisual" Storyboard.TargetProperty="Opacity">
+                                                    <SplineDoubleKeyFrame KeyTime="0:0:0.167" Value="1" KeySpline="0,0,0,1" />
+                                                </DoubleAnimationUsingKeyFrames>
+                                            </Storyboard>
+                                        </VisualState>
+                                    </VisualStateGroup>
+
+                                    <VisualStateGroup x:Name="DisabledStates">
+                                        <VisualState x:Name="Enabled" />
+
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundDisabled}" />
+                                                <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundDisabled}" />
+                                                <Setter Target="PART_SelectionVisual.Fill" Value="{ThemeResource SelectorBarItemDisabledPillFill}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+
+                                <!-- In the star column, so the slack of the
+                                     item's half is the label's to be centred
+                                     in rather than space left over at the
+                                     right of an Auto column. -->
+                                <StackPanel
+                                    Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Margin="{TemplateBinding Padding}"
+                                    Spacing="8"
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                                    <ContentPresenter
+                                        x:Name="PART_IconVisual"
+                                        Content="{TemplateBinding Icon}"
+                                        Margin="-2,0"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        RenderTransformOrigin="0.5,0.5">
+                                        <ContentPresenter.RenderTransform>
+                                            <ScaleTransform x:Name="IconTransform" ScaleX="0.8" ScaleY="0.8" />
+                                        </ContentPresenter.RenderTransform>
+                                    </ContentPresenter>
+
+                                    <TextBlock
+                                        x:Name="PART_TextVisual"
+                                        Text="{TemplateBinding Text}"
+                                        FontFamily="{TemplateBinding FontFamily}"
+                                        FontWeight="{TemplateBinding FontWeight}"
+                                        FontSize="{TemplateBinding FontSize}"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <!-- WinUI's own pill, at the width it draws
+                                     itself: a short mark centred under the
+                                     label, the way Windows' settings
+                                     underlines the page you are on, rather
+                                     than a rule across the whole half. -->
+                                <Rectangle
+                                    x:Name="PART_SelectionVisual"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="2"
+                                    Width="4"
+                                    Height="3"
+                                    RadiusX="0.5"
+                                    RadiusY="1"
+                                    Fill="{ThemeResource SelectorBarItemPillFill}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Bottom"
+                                    RenderTransformOrigin="0.5,0.5"
+                                    IsHitTestVisible="False"
+                                    Opacity="0">
+                                    <Rectangle.RenderTransform>
+                                        <CompositeTransform x:Name="PillTransform" ScaleX="1" />
+                                    </Rectangle.RenderTransform>
+                                </Rectangle>
+
+                                <Rectangle
+                                    x:Name="PART_CommonVisual"
+                                    Grid.RowSpan="2"
+                                    Grid.ColumnSpan="2"
+                                    Fill="{ThemeResource SelectorBarItemBackground}"
+                                    Stroke="{ThemeResource SelectorBarItemBorderBrush}"
+                                    StrokeThickness="1"
+                                    IsHitTestVisible="False" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- One device: the default marker and its name on top, its
                  volume underneath. Shared by the outputs and the inputs,
                  which the Plasma applet treats alike. -->
@@ -54,10 +248,11 @@
                     <RadioButton
                         GroupName="{x:Bind GroupName}"
                         MinWidth="0"
-                        Margin="0"
+                        Margin="8,0,0,0"
                         Padding="8,0,0,0"
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Center"
                         IsEnabled="{x:Bind CanSetDefault}"
                         IsChecked="{x:Bind IsDefault, Mode=OneWay}"
                         Checked="{x:Bind MakeDefault}"
@@ -73,10 +268,11 @@
                             MaxLines="1" />
                     </RadioButton>
 
-                    <!-- Flush left, so the mute button's edge lines up with
-                         the radio button above it rather than with the name,
-                         the way the Windows volume flyout stacks them. -->
-                    <Grid Grid.Row="1" ColumnSpacing="10" Height="32">
+                    <!-- Indented like the radio button above it, so the mute
+                         button's edge lines up with the radio rather than
+                         with the name, the way the Windows volume flyout
+                         stacks them. -->
+                    <Grid Grid.Row="1" Margin="8,0,0,0" ColumnSpacing="10" Height="32">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -125,10 +321,11 @@
                 <RadioButton
                     GroupName="{x:Bind GroupName}"
                     MinWidth="0"
-                    Margin="0"
+                    Margin="8,0,0,0"
                     Padding="8,0,0,0"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Center"
                     IsChecked="{x:Bind IsSelected, Mode=OneWay}"
                     Checked="{x:Bind Choose}"
                     AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
@@ -314,21 +511,27 @@
             <!-- Stretched across the flyout, with its two items given half
                  of it each in OnTabsSizeChanged: SelectorBar stacks its
                  items at the width their text wants, so equal halves are
-                 not something the markup can ask for. -->
+                 not something the markup can ask for.
+
+                 Padding without the stock 4 on top, for the same reason the
+                 items lose theirs: the gap above the labels is the flyout's
+                 own padding and nothing else. The 4 below it stays, as the
+                 room the selection pill sits in. -->
             <SelectorBar
                 x:Name="Tabs"
                 HorizontalAlignment="Stretch"
+                Padding="0,0,0,4"
                 SizeChanged="OnTabsSizeChanged"
                 SelectionChanged="OnTabChanged">
                 <SelectorBarItem
                     x:Name="DevicesTabItem"
                     Text="Devices"
-                    HorizontalContentAlignment="Center"
+                    Style="{StaticResource FlyoutTabItemStyle}"
                     IsSelected="True" />
                 <SelectorBarItem
                     x:Name="ApplicationsTabItem"
                     Text="Applications"
-                    HorizontalContentAlignment="Center" />
+                    Style="{StaticResource FlyoutTabItemStyle}" />
             </SelectorBar>
 
             <Grid Grid.Row="1">
