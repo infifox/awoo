@@ -345,20 +345,31 @@ internal sealed class AudioService : IAudioService
     /// </remarks>
     private async Task Settle(Endpoint endpoint, Guid? formatId, TaskCompletionSource settled)
     {
-        // The answer is deliberately dropped: what the endpoint reads back as
-        // is the truth, and a format Windows declined leaves it where it was.
-        _ = await _spatial.SetAsync(endpoint.Id, formatId).ConfigureAwait(false);
-
-        _dispatch(() =>
+        try
         {
-            if (!_disposed)
+            // The answer is deliberately dropped: what the endpoint reads back
+            // as is the truth, and a format Windows declined leaves it where
+            // it was.
+            _ = await _spatial.SetAsync(endpoint.Id, formatId).ConfigureAwait(false);
+        }
+        finally
+        {
+            // A finally because the menu's snap-back waits on this task: .NET
+            // maps some Windows failures to exception types SetAsync's filter
+            // does not cover — a device unplugged mid-write, say — and a throw
+            // that skipped the read-back would leave the UI showing a format
+            // that was never applied.
+            _dispatch(() =>
             {
-                ReadSpatial(endpoint);
-                Publish();
-            }
+                if (!_disposed)
+                {
+                    ReadSpatial(endpoint);
+                    Publish();
+                }
 
-            settled.SetResult();
-        });
+                settled.SetResult();
+            });
+        }
     }
 
     private void SetVolume(Endpoint endpoint, int percent)
