@@ -36,7 +36,7 @@
     <Description>Tray volume control for Windows 11</Description>
     <Company>Awoo</Company>
     <Copyright>Copyright (c) Awoo contributors</Copyright>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
