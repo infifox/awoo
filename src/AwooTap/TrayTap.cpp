@@ -384,7 +384,7 @@ bool TrayTap::FindVolumeIcon()
         }
 
         std::wstring text;
-        if (ReadText(entry.first, text) && IsVolumeGlyph(text))
+        if (ReadProperty(entry.first, L"Text", &text, nullptr) && IsVolumeGlyph(text))
         {
             m_target = iconView;
             return true;
@@ -394,7 +394,21 @@ bool TrayTap::FindVolumeIcon()
     return false;
 }
 
-bool TrayTap::ReadText(InstanceHandle handle, std::wstring& text) const
+/// <summary>
+/// Reads one property of an element out of its property chain: its value as
+/// text, and the index <c>SetProperty</c> and <c>ClearProperty</c> take.
+/// Either output may be null.
+/// </summary>
+/// <remarks>
+/// The chain is the only dependable source of that index. GetPropertyIndex,
+/// which this used to ask, is an Edit-and-Continue helper that resolves a name
+/// against the element's own type — and it answers nothing for Visibility on
+/// the tray's icons, which SystemTray.IconView inherits from UIElement rather
+/// than declaring itself. That is what made every hide fail. The chain reports
+/// every property an element has, inherited ones included, each with its index.
+/// </remarks>
+bool TrayTap::ReadProperty(
+    InstanceHandle handle, const wchar_t* name, std::wstring* value, unsigned int* index) const
 {
     if (!m_service)
     {
@@ -410,15 +424,24 @@ bool TrayTap::ReadText(InstanceHandle handle, std::wstring& text) const
         handle, &sourceCount, &sources, &valueCount, &values);
     if (FAILED(hr))
     {
+        Log(L"ReadProperty(%llu, %s): the chain came back 0x%08X",
+            static_cast<unsigned long long>(handle), name, hr);
         return false;
     }
 
     bool found = false;
     for (UINT i = 0; i < valueCount; ++i)
     {
-        if (values[i].PropertyName && std::wcscmp(values[i].PropertyName, L"Text") == 0)
+        if (values[i].PropertyName && std::wcscmp(values[i].PropertyName, name) == 0)
         {
-            text = values[i].Value ? values[i].Value : L"";
+            if (value)
+            {
+                *value = values[i].Value ? values[i].Value : L"";
+            }
+            if (index)
+            {
+                *index = values[i].Index;
+            }
             found = true;
             break;
         }
@@ -448,6 +471,101 @@ bool TrayTap::ReadText(InstanceHandle handle, std::wstring& text) const
     return found;
 }
 
+/// <summary>
+/// The index of an element's Visibility: out of its property chain, or failing
+/// that out of the Edit-and-Continue lookup, which is kept only for the day a
+/// build stops reporting the property in the chain.
+/// </summary>
+bool TrayTap::ResolveVisibility(InstanceHandle handle, unsigned int& index) const
+{
+    if (ReadProperty(handle, L"Visibility", nullptr, &index))
+    {
+        return true;
+    }
+
+    HRESULT hr = m_service->GetPropertyIndex(handle, L"Visibility", &index);
+    if (SUCCEEDED(hr))
+    {
+        return true;
+    }
+
+    Log(L"ResolveVisibility: not in the chain, and GetPropertyIndex says 0x%08X", hr);
+    return false;
+}
+
+/// <summary>
+/// A <c>Visibility.Collapsed</c> to assign, built by the service. Zero where
+/// it could not be made.
+/// </summary>
+/// <remarks>
+/// Visibility is an enum, so the value cannot be handed over as a string: it
+/// is constructed from the metadata name of its type and one of its value
+/// names. That type name has differed between XAML generations, so rather than
+/// bet on a spelling this asks the service which enums it knows and uses the
+/// name it gives back. The spellings awoo used to guess at stay on as a
+/// fallback for a build whose GetEnums says nothing.
+/// </remarks>
+InstanceHandle TrayTap::MakeCollapsed()
+{
+    if (m_visibilityEnum.empty())
+    {
+        UINT count = 0;
+        EnumType* enums = nullptr;
+        HRESULT hr = m_service->GetEnums(&count, &enums);
+        if (SUCCEEDED(hr) && enums)
+        {
+            for (UINT i = 0; i < count; ++i)
+            {
+                std::wstring name = enums[i].Name ? enums[i].Name : L"";
+                if (m_visibilityEnum.empty() &&
+                    (name == L"Visibility" || EndsWith(name, L".Visibility")))
+                {
+                    m_visibilityEnum = name;
+                }
+
+                SysFreeString(enums[i].Name);
+                if (enums[i].ValueInts)
+                {
+                    SafeArrayDestroy(enums[i].ValueInts);
+                }
+                if (enums[i].ValueStrings)
+                {
+                    SafeArrayDestroy(enums[i].ValueStrings);
+                }
+            }
+            CoTaskMemFree(enums);
+        }
+        Log(L"MakeCollapsed: GetEnums hr=0x%08X of %u gave [%s]", hr, count, m_visibilityEnum.c_str());
+    }
+
+    std::wstring names[3];
+    int attempts = 0;
+    if (!m_visibilityEnum.empty())
+    {
+        names[attempts++] = m_visibilityEnum;
+    }
+    names[attempts++] = L"Windows.UI.Xaml.Visibility";
+    names[attempts++] = L"Visibility";
+
+    for (int i = 0; i < attempts; ++i)
+    {
+        BSTR type = SysAllocString(names[i].c_str());
+        BSTR value = SysAllocString(L"Collapsed");
+        InstanceHandle collapsed = 0;
+        HRESULT hr = m_service->CreateInstance(type, value, &collapsed);
+        SysFreeString(type);
+        SysFreeString(value);
+
+        if (SUCCEEDED(hr) && collapsed != 0)
+        {
+            return collapsed;
+        }
+        Log(L"MakeCollapsed: CreateInstance([%s], Collapsed) hr=0x%08X", names[i].c_str(), hr);
+    }
+
+    return 0;
+}
+
 bool TrayTap::ApplyHide()
 {
     if (m_applied)
@@ -459,46 +577,41 @@ bool TrayTap::ApplyHide()
         return false;
     }
 
-    UINT visibilityIndex = 0;
-    if (FAILED(m_service->GetPropertyIndex(m_target, L"Visibility", &visibilityIndex)))
+    unsigned int visibilityIndex = 0;
+    if (!ResolveVisibility(m_target, visibilityIndex))
     {
-        Log(L"ApplyHide: no Visibility property index");
         return false;
     }
 
-    // Visibility is an enum, so the value to set is made through the service.
-    // The exact metadata type name has varied across XAML generations, so try
-    // the forms it has taken rather than betting on one.
-    struct { const wchar_t* type; const wchar_t* value; } attempts[] =
+    InstanceHandle collapsed = MakeCollapsed();
+    if (collapsed == 0)
     {
-        { L"Windows.UI.Xaml.Visibility", L"Collapsed" },
-        { L"Visibility",                 L"Collapsed" },
-        { L"Windows.UI.Xaml.Visibility", L"1" },
-    };
-
-    for (const auto& attempt : attempts)
-    {
-        BSTR type = SysAllocString(attempt.type);
-        BSTR value = SysAllocString(attempt.value);
-        InstanceHandle collapsed = 0;
-        HRESULT hr = m_service->CreateInstance(type, value, &collapsed);
-        SysFreeString(type);
-        SysFreeString(value);
-
-        if (SUCCEEDED(hr) && collapsed != 0)
-        {
-            hr = m_service->SetProperty(m_target, collapsed, visibilityIndex);
-            if (SUCCEEDED(hr))
-            {
-                m_applied = true;
-                return true;
-            }
-            Log(L"ApplyHide: SetProperty failed hr=0x%08X", hr);
-        }
+        Log(L"ApplyHide: could not make a Collapsed value");
+        return false;
     }
 
-    Log(L"ApplyHide: could not make a Collapsed value");
-    return false;
+    HRESULT hr = m_service->SetProperty(m_target, collapsed, visibilityIndex);
+    if (FAILED(hr))
+    {
+        Log(L"ApplyHide: SetProperty(index=%u) failed hr=0x%08X", visibilityIndex, hr);
+        return false;
+    }
+
+    // Read it back rather than trust the call: what this returns is what the
+    // settings window's note is written from, so it should say what the tray
+    // looks like rather than what awoo asked for. The chain renders an enum as
+    // its number rather than its name, so Collapsed comes back as "1" — accept
+    // either, and let anything else stand as a hide that did not take.
+    std::wstring visibility;
+    if (ReadProperty(m_target, L"Visibility", &visibility, nullptr) &&
+        visibility != L"Collapsed" && visibility != L"1")
+    {
+        Log(L"ApplyHide: set it, but Visibility reads back as [%s]", visibility.c_str());
+        return false;
+    }
+
+    m_applied = true;
+    return true;
 }
 
 void TrayTap::ApplyRestore()
@@ -511,10 +624,14 @@ void TrayTap::ApplyRestore()
 
     // Clearing the local value returns Visibility to its default, which is
     // Visible — no need to construct a value to put it back.
-    UINT visibilityIndex = 0;
-    if (SUCCEEDED(m_service->GetPropertyIndex(m_target, L"Visibility", &visibilityIndex)))
+    unsigned int visibilityIndex = 0;
+    if (ResolveVisibility(m_target, visibilityIndex))
     {
-        m_service->ClearProperty(m_target, visibilityIndex);
+        HRESULT hr = m_service->ClearProperty(m_target, visibilityIndex);
+        if (FAILED(hr))
+        {
+            Log(L"ApplyRestore: ClearProperty(index=%u) failed hr=0x%08X", visibilityIndex, hr);
+        }
     }
     m_applied = false;
 }
@@ -533,19 +650,47 @@ void TrayTap::Log(const wchar_t* format, ...)
     OutputDebugStringW(line);
     OutputDebugStringW(L"\n");
 
-    // A best-effort trace alongside it: the whole feature is proven by hand on
-    // the human's machine, where this file is the only window into what the
-    // injected DLL saw.
-    wchar_t path[MAX_PATH];
-    DWORD n = GetEnvironmentVariableW(L"TEMP", path, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH)
-    {
-        return;
-    }
-    wcscat_s(path, MAX_PATH, L"\\awoo-tap.log");
+    // A best-effort trace alongside it, since the injected DLL is otherwise
+    // unobservable: this file is the only account of what it saw inside
+    // Explorer. It goes beside the DLL first, so a build's log lands in the
+    // output folder that produced it and whoever is working on the feature can
+    // read it; an installed copy cannot write next to itself, and falls back to
+    // Explorer's %TEMP%.
+    //
+    // Room for the name is checked by hand throughout: the secure CRT's string
+    // calls answer an overflow by invoking the invalid-parameter handler, which
+    // inside Explorer would take Explorer down with it.
+    static const wchar_t kName[] = L"awoo-tap.log";
+    static const size_t kNameLength = _countof(kName) - 1;
 
-    HANDLE file = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
-        nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    wchar_t path[MAX_PATH];
+    HANDLE file = INVALID_HANDLE_VALUE;
+
+    DWORD n = GetModuleFileNameW(reinterpret_cast<HMODULE>(&__ImageBase), path, MAX_PATH);
+    if (n != 0 && n < MAX_PATH)
+    {
+        wchar_t* slash = wcsrchr(path, L'\\');
+        if (slash && (slash + 1 - path) + kNameLength < MAX_PATH)
+        {
+            wcscpy_s(slash + 1, MAX_PATH - (slash + 1 - path), kName);
+            file = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        }
+    }
+
+    if (file == INVALID_HANDLE_VALUE)
+    {
+        n = GetEnvironmentVariableW(L"TEMP", path, MAX_PATH);
+        if (n == 0 || n + 1 + kNameLength >= MAX_PATH)
+        {
+            return;
+        }
+        path[n] = L'\\';
+        wcscpy_s(path + n + 1, MAX_PATH - n - 1, kName);
+        file = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+            nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    }
+
     if (file == INVALID_HANDLE_VALUE)
     {
         return;

@@ -72,7 +72,10 @@ private:
     bool FindVolumeIcon();                 // locates the IconView, sets m_target
     bool ApplyHide();                      // collapses m_target
     void ApplyRestore();                   // clears the collapse again
-    bool ReadText(InstanceHandle handle, std::wstring& text) const;
+    bool ReadProperty(InstanceHandle handle, const wchar_t* name,
+                      std::wstring* value, unsigned int* index) const;
+    bool ResolveVisibility(InstanceHandle handle, unsigned int& index) const;
+    InstanceHandle MakeCollapsed();
     InstanceHandle NearestIconViewAncestor(InstanceHandle handle) const;
 
     static void Log(const wchar_t* format, ...);
@@ -85,6 +88,11 @@ private:
     bool m_hideRequested;                  // awoo has asked us to hide
     bool m_applied;                        // and we have actually collapsed it
     InstanceHandle m_target;               // the volume IconView, or 0
+
+    // The metadata name of the Visibility enum, as this XAML build spells it;
+    // empty until GetEnums has been asked. Resolved once — it cannot change
+    // under a running Explorer.
+    std::wstring m_visibilityEnum;
 
     std::unordered_map<InstanceHandle, Node> m_nodes;
 };
