@@ -53,9 +53,14 @@
     The .NET SDK's MSBuild cannot drive a C++ vcxproj, so Visual Studio's
     MSBuild is located with vswhere and run as a nested build, and its DLL is
     dropped beside awoo.exe so a plain `dotnet build` — and the preview that
-    runs it — has the whole feature. Task 04 carries this through the publish,
-    zip and installer paths and the no-Visual-Studio story; here it is just
-    enough that a local build produces it.
+    runs it — has the whole feature. PublishAwooTap below carries it on into
+    the publish folder, which is what the portable zip and the installer's
+    payload are cut from.
+
+    Both targets fail the build rather than let the DLL go missing. awoo
+    without it beside the exe looks exactly like a Windows update having moved
+    the icon out of reach — the setting reports it cannot hide the icon, and
+    nothing would say the payload was the real problem.
   -->
   <PropertyGroup>
     <AwooTapProject>$(MSBuildThisFileDirectory)..\AwooTap\AwooTap.vcxproj</AwooTapProject>
@@ -93,6 +98,25 @@
            Text="The native tray DLL build did not produce $(AwooTapOutDir)AwooTap.dll." />
 
     <Copy SourceFiles="@(_AwooTapBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!--
+    `dotnet publish` copies the files the SDK's own item groups name, and the
+    TAP arrives in $(OutDir) by the Copy above rather than as an item of this
+    project — so a publish, and the portable zip and installer payload cut
+    from it, would go out without the DLL. Name it as a file to publish. Its
+    .pdb stays behind: that one is the build's, not the release's.
+  -->
+  <Target Name="PublishAwooTap" AfterTargets="ComputeResolvedFilesToPublishList">
+    <Error Condition="!Exists('$(OutDir)AwooTap.dll')"
+           Text="No AwooTap.dll in $(OutDir), so awoo would publish without the native tray TAP and could never hide the stock volume icon." />
+
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(OutDir)AwooTap.dll">
+        <RelativePath>AwooTap.dll</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
   </Target>
 
   <!--

@@ -7,6 +7,13 @@
     none, then builds src/Awoo. Awoo is an unpackaged WinUI 3 app, so the
     result is a plain exe under src/Awoo/bin.
 
+    The build also produces AwooTap.dll, the native tray TAP that hides the
+    stock Windows volume icon, and drops it beside awoo.exe -- which needs
+    Visual Studio's C++ x64 toolset, the one thing here that cannot be
+    bootstrapped. Every output is checked for it, so a build or a package that
+    lost the DLL stops with a message rather than shipping a hide feature that
+    could never work.
+
 .PARAMETER Configuration
     Debug (default) or Release.
 
@@ -116,6 +123,48 @@ function Resolve-Iscc {
     return $fetched
 }
 
+# The native tray TAP has to sit beside awoo.exe: awoo loads AwooTap.dll out
+# of its own folder to hide the stock volume icon, and an output that lost it
+# is indistinguishable, from inside the app, from a Windows update having
+# moved the icon out of reach -- the setting just says it cannot hide it. So
+# every output this script produces is checked, and a missing DLL stops the
+# build here rather than becoming a download that can never hide anything.
+$tapName = 'AwooTap.dll'
+$tapAdvice = @"
+$tapName is built from src\AwooTap by Visual Studio's MSBuild, which needs the
+C++ x64 toolset -- the 'Desktop development with C++' workload of Visual Studio
+or the Build Tools. It is the one part of this build that cannot be fetched
+per-user, so on a machine without it the build above says so and stops.
+"@
+
+function Assert-TapInFolder {
+    param(
+        [Parameter(Mandatory)] [string] $Directory,
+        [Parameter(Mandatory)] [string] $What
+    )
+
+    if (-not (Test-Path (Join-Path $Directory $tapName))) {
+        throw "$What has no $tapName, so awoo could never hide the stock volume icon.`n`n$tapAdvice"
+    }
+}
+
+function Assert-TapInZip {
+    param([Parameter(Mandatory)] [string] $Zip)
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+    try {
+        $found = @($archive.Entries | Where-Object { $_.FullName -eq $tapName }).Count -gt 0
+    }
+    finally {
+        $archive.Dispose()
+    }
+
+    if (-not $found) {
+        throw "$Zip has no $tapName at its root, so awoo could never hide the stock volume icon.`n`n$tapAdvice"
+    }
+}
+
 $dotnet = Resolve-Dotnet
 Write-Host "Using $dotnet" -ForegroundColor DarkGray
 
@@ -132,6 +181,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $exe = Join-Path $targetDir 'awoo.exe'
+Assert-TapInFolder -Directory $targetDir -What 'The build output'
 Write-Host ""
 Write-Host "Built $exe" -ForegroundColor Green
 
@@ -156,9 +206,14 @@ if ($Package) {
         throw "Publish failed with exit code $LASTEXITCODE."
     }
 
+    # The installer copies this folder wholesale, so checking it here is what
+    # says both artifacts carry the TAP.
+    Assert-TapInFolder -Directory $portable -What 'The portable publish'
+
     $zip = Join-Path $dist "awoo-$version-portable-win-x64.zip"
     Write-Host "Zipping the portable build ..." -ForegroundColor Cyan
     Compress-Archive -Path (Join-Path $portable '*') -DestinationPath $zip -CompressionLevel Optimal
+    Assert-TapInZip -Zip $zip
 
     $iscc = Resolve-Iscc
     Write-Host "Compiling the installer with $iscc ..." -ForegroundColor Cyan

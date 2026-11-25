@@ -243,6 +243,15 @@ Drop `-Run` to build without starting it, and add `-Configuration Release` for
 a release build. The result is a plain `awoo.exe` under `src\Awoo\bin`: Awoo
 is an unpackaged WinUI 3 app, so there is no MSIX and no install step.
 
+It also needs Visual Studio's **C++ x64 toolset** — the "Desktop development
+with C++" workload, of either Visual Studio or the standalone Build Tools.
+`src\AwooTap` is the small native DLL Awoo loads into Explorer to hide the
+stock volume icon, and the .NET SDK cannot compile C++: the project finds
+Visual Studio's MSBuild with `vswhere` and runs it as a step of the ordinary
+build, which is the one thing here that cannot be fetched per-user. Without
+it the build stops and says so, rather than producing an `awoo.exe` whose hide
+setting could never work.
+
 To build what a release ships — the self-contained publish, and then the
 installer over it:
 
