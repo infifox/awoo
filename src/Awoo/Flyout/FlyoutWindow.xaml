@@ -99,6 +99,13 @@
                                         </VisualState>
 
                                         <VisualState x:Name="SelectedNormal">
+                                            <!-- The same brush as at rest in light and dark, but the
+                                                 system highlight colour in high contrast — where it is
+                                                 what says which tab is selected. -->
+                                            <VisualState.Setters>
+                                                <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundSelected}" />
+                                                <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundSelected}" />
+                                            </VisualState.Setters>
                                             <Storyboard>
                                                 <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PillTransform" Storyboard.TargetProperty="ScaleX">
                                                     <SplineDoubleKeyFrame KeyTime="0:0:0.167" Value="4" KeySpline="0,0,0,1" />
