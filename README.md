@@ -1,13 +1,12 @@
 # Awoo
 
-A system-tray volume control for Windows 11, built to work the way the
-[KDE Plasma 6.4](https://kde.org/plasma-desktop/) volume applet does — in
-native Fluent clothing.
+A system-tray volume control for Windows 11, heavily inspired by the
+[KDE Plasma 6.4](https://kde.org/plasma-desktop/) volume applet.
 
-Windows gives you a volume slider. Plasma gives you every device and every
-application, each with its own slider and its own mute, and lets you move an
-application's sound to another device without opening a settings app. Awoo is
-that, for Windows 11.
+Significantly enhances what's possible with the built-in windows volume slider
+by showing every device and every application, each with its own slider and its
+own mute, and lets you easily adjust volume and switch default devices all in
+one place.
 
 ![The Awoo flyout, its Devices tab listing each output with its own slider,
 percentage and mute](docs/flyout-devices.png)
