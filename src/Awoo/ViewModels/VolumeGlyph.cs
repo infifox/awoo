@@ -27,6 +27,13 @@ internal static class VolumeGlyph
     private const string Microphone = "\uE720";
     private const string MicrophoneOff = "\uEC54";
 
+    /// <summary>
+    /// Sound going out in every direction, which is what spatial sound is.
+    /// Deliberately not the speaker: the application rows' output selector
+    /// already means "which device", and these two sit one above the other.
+    /// </summary>
+    internal const string Spatial = "\uE95A";
+
     /// <summary>The speaker for an output's level, muted included.</summary>
     internal static string For(VolumeLevel level) => level switch
     {

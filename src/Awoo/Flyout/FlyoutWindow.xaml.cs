@@ -123,6 +123,11 @@ public sealed partial class FlyoutWindow : Window
         // route's device name is part of how wide a row wants to be.
         Apps.Refresh();
 
+        // And what spatial format each output is in, for the same reason one
+        // step down: Windows does announce this one, but the format's name is
+        // on the button, so opening on a stale one would show.
+        Devices.Refresh();
+
         Place();
         AppWindow.Show(activateWindow: true);
         Activate();
