@@ -53,7 +53,11 @@
                  looser than its left. -->
             <Style x:Key="FlyoutTabItemStyle" TargetType="SelectorBarItem">
                 <!-- Not the stock null: a null background is not hit-tested,
-                     which is what kept the click target down to the label. -->
+                     which is what kept the click target down to the label.
+                     Transparent and nothing else, though: the states below
+                     answer the pointer by recolouring the label and leave the
+                     background where it is, which is how this switcher has
+                     always read. -->
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{ThemeResource SelectorBarItemForeground}" />
                 <Setter Property="Padding" Value="12,0,12,7" />
@@ -84,7 +88,6 @@
 
                                         <VisualState x:Name="UnselectedPointerOver">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                             </VisualState.Setters>
@@ -92,7 +95,6 @@
 
                                         <VisualState x:Name="UnselectedPressed">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                             </VisualState.Setters>
@@ -118,7 +120,6 @@
 
                                         <VisualState x:Name="SelectedPointerOver">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPointerOver}" />
                                             </VisualState.Setters>
@@ -134,7 +135,6 @@
 
                                         <VisualState x:Name="SelectedPressed">
                                             <VisualState.Setters>
-                                                <Setter Target="PART_ContainerRoot.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
                                                 <Setter Target="PART_TextVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                                 <Setter Target="PART_IconVisual.Foreground" Value="{ThemeResource SelectorBarItemForegroundPressed}" />
                                             </VisualState.Setters>
@@ -232,9 +232,36 @@
                 </Setter>
             </Style>
 
-            <!-- One device: the default marker and its name on top, its
-                 volume underneath. Shared by the outputs and the inputs,
-                 which the Plasma applet treats alike. -->
+            <!-- One spatial sound format a device could be put into. The
+                 same shape as a device row's default marker and an app row's
+                 route, because it is the same question again: which of
+                 these. -->
+            <DataTemplate x:Key="SpatialOptionTemplate" x:DataType="vm:SpatialOptionViewModel">
+                <RadioButton
+                    GroupName="{x:Bind GroupName}"
+                    MinWidth="0"
+                    Margin="8,0,0,0"
+                    Padding="8,0,0,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Center"
+                    IsChecked="{x:Bind IsSelected, Mode=OneWay}"
+                    Checked="{x:Bind Choose}"
+                    AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Text="{x:Bind Name, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="NoWrap"
+                        MaxLines="1" />
+                </RadioButton>
+            </DataTemplate>
+
+            <!-- One device: the default marker and its name on top, with its
+                 spatial sound beside them, and its volume underneath. Shared
+                 by the outputs and the inputs, which the Plasma applet treats
+                 alike — only an output that has spatial sound carries the
+                 selector. -->
             <DataTemplate x:Key="DeviceRowTemplate" x:DataType="vm:DeviceRowViewModel">
                 <Grid RowSpacing="2">
                     <Grid.RowDefinitions>
@@ -242,31 +269,109 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- A radio button is the Fluent answer to Plasma's
-                         default-device marker: it shows which device is the
-                         default and sets it in the one click. -->
-                    <RadioButton
-                        GroupName="{x:Bind GroupName}"
-                        MinWidth="0"
-                        Margin="8,0,0,0"
-                        Padding="8,0,0,0"
-                        HorizontalAlignment="Stretch"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Center"
-                        IsEnabled="{x:Bind CanSetDefault}"
-                        IsChecked="{x:Bind IsDefault, Mode=OneWay}"
-                        Checked="{x:Bind MakeDefault}"
-                        ToolTipService.ToolTip="{x:Bind DefaultToolTip, Mode=OneWay}"
-                        AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
-                        <!-- The name alone: which kind of device this is, the
-                             Outputs and Inputs headings already say. -->
-                        <TextBlock
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- A radio button is the Fluent answer to Plasma's
+                             default-device marker: it shows which device is the
+                             default and sets it in the one click. -->
+                        <RadioButton
+                            GroupName="{x:Bind GroupName}"
+                            MinWidth="0"
+                            Margin="8,0,0,0"
+                            Padding="8,0,0,0"
                             VerticalAlignment="Center"
-                            Text="{x:Bind Name, Mode=OneWay}"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="NoWrap"
-                            MaxLines="1" />
-                    </RadioButton>
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Center"
+                            IsEnabled="{x:Bind CanSetDefault}"
+                            IsChecked="{x:Bind IsDefault, Mode=OneWay}"
+                            Checked="{x:Bind MakeDefault}"
+                            ToolTipService.ToolTip="{x:Bind DefaultToolTip, Mode=OneWay}"
+                            AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                            <!-- The name alone: which kind of device this is, the
+                                 Outputs and Inputs headings already say. -->
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Text="{x:Bind Name, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="NoWrap"
+                                MaxLines="1" />
+                        </RadioButton>
+
+                        <!-- What spatial sound this device is in. Hidden
+                             outright on an input, and on an output with no
+                             format to offer, rather than showing a control
+                             that could do nothing. The format's name shows
+                             only when there is one; off is the quiet, common
+                             case, and the glyph alone says what the button
+                             is about. -->
+                        <DropDownButton
+                            Grid.Column="1"
+                            Height="28"
+                            MaxWidth="150"
+                            Padding="8,0,6,0"
+                            VerticalAlignment="Center"
+                            Visibility="{x:Bind CanSetSpatial, Mode=OneWay}"
+                            ToolTipService.ToolTip="{x:Bind SpatialToolTip, Mode=OneWay}"
+                            AutomationProperties.Name="Spatial sound">
+                            <Grid ColumnSpacing="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <FontIcon
+                                    FontSize="14"
+                                    VerticalAlignment="Center"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Glyph="{x:Bind SpatialGlyph}" />
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Text="{x:Bind SpatialName, Mode=OneWay}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap"
+                                    MaxLines="1"
+                                    Visibility="{x:Bind HasSpatial, Mode=OneWay}" />
+                            </Grid>
+
+                            <DropDownButton.Flyout>
+                                <!-- Constrained to the flyout window, for the
+                                     reason the app rows' selector gives: a
+                                     windowed popup would take the foreground
+                                     and the flyout dismisses when it loses
+                                     it. -->
+                                <Flyout Placement="Bottom" ShouldConstrainToRootBounds="True">
+                                    <StackPanel MinWidth="200" Spacing="4">
+                                        <TextBlock
+                                            Text="Spatial sound"
+                                            Style="{ThemeResource CaptionTextBlockStyle}"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+                                        <ScrollViewer
+                                            MaxHeight="260"
+                                            HorizontalScrollMode="Disabled"
+                                            HorizontalScrollBarVisibility="Disabled"
+                                            VerticalScrollBarVisibility="Auto">
+                                            <ItemsRepeater
+                                                ItemsSource="{x:Bind SpatialOptions, Mode=OneWay}"
+                                                ItemTemplate="{StaticResource SpatialOptionTemplate}">
+                                                <ItemsRepeater.Layout>
+                                                    <StackLayout Spacing="2" />
+                                                </ItemsRepeater.Layout>
+                                            </ItemsRepeater>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Flyout>
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
+                    </Grid>
 
                     <!-- Indented like the radio button above it, so the mute
                          button's edge lines up with the radio rather than

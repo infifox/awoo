@@ -54,6 +54,14 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
     /// <summary>True on a machine with no audio hardware at all.</summary>
     public bool IsEmpty => Outputs.Count == 0 && Inputs.Count == 0;
 
+    /// <summary>
+    /// Re-reads what every output's spatial sound is, which the flyout does
+    /// as it opens. Windows does announce this one changing, so this is the
+    /// belt to that braces: the moment a stale menu would be seen is the
+    /// moment before it is shown.
+    /// </summary>
+    internal void Refresh() => _audio.RefreshSpatialFormats();
+
     private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices) => Apply(devices);
 
     /// <summary>

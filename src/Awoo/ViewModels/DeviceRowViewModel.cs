@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Awoo.Audio;
 
@@ -20,6 +21,9 @@ namespace Awoo.ViewModels;
 /// </remarks>
 public sealed class DeviceRowViewModel : INotifyPropertyChanged
 {
+    /// <summary>What the spatial menu calls plain stereo.</summary>
+    private const string SpatialOffName = "Off";
+
     private readonly IAudioService _audio;
     private AudioDeviceState _state;
 
@@ -32,6 +36,12 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         // default of their own list, so they must not unselect each other.
         GroupName = $"awoo.default.{state.Kind}";
         CanSetDefault = audio.CanSetDefaultDevice;
+
+        // This one is per device: spatial sound is a property of the
+        // endpoint, so every row's menu is a group of its own.
+        SpatialGroupName = $"awoo.spatial.{state.Id}";
+        SpatialGlyph = VolumeGlyph.Spatial;
+        RebuildSpatial();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -91,6 +101,39 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         ? "Default device"
         : CanSetDefault ? "Set as default device" : "Default device";
 
+    /// <summary>
+    /// Whether to offer this row's spatial sound control at all. False for
+    /// every input, for an output Windows says has no spatial sound, and for
+    /// one where no format is usable — the control is absent rather than
+    /// disabled, the same manners as the route selector on an application
+    /// that cannot be routed.
+    /// </summary>
+    public bool CanSetSpatial => _state.Spatial.CanSet;
+
+    /// <summary>Sound going out in every direction: what the control is about.</summary>
+    public string SpatialGlyph { get; }
+
+    /// <summary>Which radio group this row's spatial menu is, so two rows never collide.</summary>
+    public string SpatialGroupName { get; }
+
+    /// <summary>Every format this device can be put into, "Off" first.</summary>
+    public ObservableCollection<SpatialOptionViewModel> SpatialOptions { get; } = [];
+
+    /// <summary>
+    /// Whether this device is in a spatial format rather than plain stereo.
+    /// What makes the button name the format: off is the quiet common case
+    /// and shows the glyph alone, the way an application following the
+    /// default device does.
+    /// </summary>
+    public bool HasSpatial => _state.Spatial.Active is not null;
+
+    /// <summary>The format this device is in, as the button names it.</summary>
+    public string SpatialName => _state.Spatial.Active?.Name ?? SpatialOffName;
+
+    public string SpatialToolTip => _state.Spatial.Active is { } active
+        ? $"Spatial sound: {active.Name}"
+        : "Spatial sound is off";
+
     private VolumeLevel Level => VolumeState.LevelOf(_state.Percent, _state.IsMuted, true);
 
     /// <summary>
@@ -131,6 +174,11 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         {
             Raise(nameof(MuteGlyph));
         }
+
+        if (!state.Spatial.Equals(previous.Spatial))
+        {
+            RebuildSpatial();
+        }
     }
 
     /// <summary>
@@ -161,6 +209,97 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         {
             _audio.SetDefaultDevice(_state.Id);
         }
+    }
+
+    /// <summary>
+    /// Puts this device into one spatial format, or back to plain stereo
+    /// when <paramref name="formatId"/> is null.
+    /// </summary>
+    /// <remarks>
+    /// The one write in the flyout that cannot be made and answered in a
+    /// breath: Windows takes a spatial format asynchronously, so the service
+    /// is awaited rather than trusted. By the time it returns, the format
+    /// has been read back off the device and published, so every choice
+    /// states its own case again — which is both how the new format gets
+    /// ticked and how one Windows declined snaps back to where the device
+    /// actually is.
+    /// </remarks>
+    internal async void ChooseSpatial(Guid? formatId)
+    {
+        if (!_state.Spatial.CanSet)
+        {
+            return;
+        }
+
+        await _audio.SetDeviceSpatialFormat(_state.Id, formatId);
+
+        foreach (var option in SpatialOptions)
+        {
+            option.Restate();
+        }
+    }
+
+    /// <summary>
+    /// Brings the menu in line with the formats this device offers and the
+    /// one it is in: "Off" first and then every format, matched by subtype so
+    /// a format renamed by an update keeps its place and one that appears —
+    /// a provider installed while awoo is running — is an inserted item
+    /// rather than a rebuilt menu.
+    /// </summary>
+    private void RebuildSpatial()
+    {
+        var spatial = _state.Spatial;
+        var wanted = new List<(Guid? Id, string Name)>(spatial.Offered.Count + 1) { (null, SpatialOffName) };
+
+        foreach (var format in spatial.Offered)
+        {
+            wanted.Add((format.Id, format.Name));
+        }
+
+        for (var index = 0; index < wanted.Count; index++)
+        {
+            var (id, name) = wanted[index];
+
+            // Off is selected exactly when no format is: both are null here.
+            var selected = id == spatial.Active?.Id;
+            var found = IndexOfSpatial(id, index);
+
+            if (found < 0)
+            {
+                SpatialOptions.Insert(index, new SpatialOptionViewModel(this, id, name, selected));
+                continue;
+            }
+
+            if (found != index)
+            {
+                SpatialOptions.Move(found, index);
+            }
+
+            SpatialOptions[index].Update(name, selected);
+        }
+
+        while (SpatialOptions.Count > wanted.Count)
+        {
+            SpatialOptions.RemoveAt(SpatialOptions.Count - 1);
+        }
+
+        Raise(nameof(CanSetSpatial));
+        Raise(nameof(HasSpatial));
+        Raise(nameof(SpatialName));
+        Raise(nameof(SpatialToolTip));
+    }
+
+    private int IndexOfSpatial(Guid? formatId, int from)
+    {
+        for (var index = from; index < SpatialOptions.Count; index++)
+        {
+            if (SpatialOptions[index].FormatId == formatId)
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private void Raise(string property) =>

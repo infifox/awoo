@@ -11,6 +11,76 @@ internal enum DeviceKind
 }
 
 /// <summary>
+/// One spatial sound format an output can be put into — Windows Sonic, Dolby
+/// Atmos and the rest — as <see cref="SpatialSound"/> found it.
+/// </summary>
+/// <param name="Id">
+/// The subtype GUID Windows knows the format by, and what
+/// <see cref="IAudioService.SetDeviceSpatialFormat"/> is given to ask for it.
+/// </param>
+/// <param name="Name">Windows' own name for it, as the menu shows it.</param>
+internal readonly record struct SpatialFormat(Guid Id, string Name);
+
+/// <summary>
+/// What spatial sound one endpoint offers and which of it is in force. Its
+/// own type because <see cref="AudioDeviceState"/> is compared by value and
+/// a bare list inside one is compared by reference — which would have every
+/// published list look changed, or never look changed, depending on which way
+/// the collection was built.
+/// </summary>
+internal sealed class SpatialState : IEquatable<SpatialState>
+{
+    /// <summary>
+    /// What an endpoint with no spatial sound to offer carries: an input,
+    /// one Windows says cannot do it, and one nothing could be read from.
+    /// Shared, so the common case allocates nothing.
+    /// </summary>
+    internal static readonly SpatialState None = new(null, []);
+
+    internal SpatialState(SpatialFormat? active, IReadOnlyList<SpatialFormat> offered)
+    {
+        Active = active;
+        Offered = offered;
+    }
+
+    /// <summary>The format in force, or null where spatial sound is off here.</summary>
+    internal SpatialFormat? Active { get; }
+
+    /// <summary>
+    /// Every format this endpoint can be put into right now, in Windows'
+    /// order. Formats the machine has not got, or whose licence does not
+    /// cover this endpoint, are not in it — picking one of those is a thing
+    /// that cannot be done rather than a thing that fails.
+    /// </summary>
+    internal IReadOnlyList<SpatialFormat> Offered { get; }
+
+    /// <summary>
+    /// Whether to offer the control at all. Nothing on offer means nothing to
+    /// choose between, so the row shows no dropdown rather than a dead one.
+    /// </summary>
+    internal bool CanSet => Offered.Count > 0;
+
+    public bool Equals(SpatialState? other) =>
+        ReferenceEquals(this, other) ||
+        (other is not null && Active == other.Active && Offered.SequenceEqual(other.Offered));
+
+    public override bool Equals(object? obj) => Equals(obj as SpatialState);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Active);
+
+        foreach (var format in Offered)
+        {
+            hash.Add(format);
+        }
+
+        return hash.ToHashCode();
+    }
+}
+
+/// <summary>
 /// One audio endpoint as the Devices tab shows it. A snapshot, like
 /// <see cref="VolumeState"/>, so a reader never sees half of a change.
 /// </summary>
@@ -24,10 +94,16 @@ internal enum DeviceKind
 /// <param name="Percent">Volume, 0–100.</param>
 /// <param name="IsMuted">Whether the endpoint is muted.</param>
 /// <param name="IsDefault">Whether this is the default device for its kind.</param>
+/// <param name="Spatial">
+/// What spatial sound this endpoint offers and is in.
+/// <see cref="SpatialState.None"/> for every input and for an output that has
+/// none.
+/// </param>
 internal readonly record struct AudioDeviceState(
     string Id,
     string Name,
     DeviceKind Kind,
     int Percent,
     bool IsMuted,
-    bool IsDefault);
+    bool IsDefault,
+    SpatialState Spatial);
