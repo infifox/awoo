@@ -11,7 +11,7 @@ hiding stops working, x64 only.
 
 ## Tasks
 
-- [ ] 01: Draw the tray icon like Windows 11's — [details](01-tray-icon-like-windows.md) — on windows
+- [x] 01: Draw the tray icon like Windows 11's — [details](01-tray-icon-like-windows.md) — on windows
 - [ ] 02: The hide engine — [details](02-hide-engine.md) — on windows
 - [ ] 03: The hide setting and its lifecycle — [details](03-hide-setting-lifecycle.md) — on windows
 - [ ] 04: Ship the engine — [details](04-ship-the-engine.md) — on windows

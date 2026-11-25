@@ -1,6 +1,4 @@
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.Drawing.Text;
 using Awoo.Audio;
 using Awoo.Interop;
 using Awoo.ViewModels;
@@ -28,49 +26,57 @@ internal static class TrayIconRenderer
     private static readonly string Font = ResolveFont();
 
     /// <summary>
+    /// What the glyph is drawn in on a dark taskbar and on a light one. Flat
+    /// out rather than slightly transparent, which is what the tray's own
+    /// icons measure at and part of why they read heavier.
+    /// </summary>
+    private static readonly Color DarkTaskbar = Color.FromArgb(255, 255, 255, 255);
+
+    private static readonly Color LightTaskbar = Color.FromArgb(255, 0, 0, 0);
+
+    /// <summary>
+    /// How far the ghosted waves carry: a quarter of the way from the
+    /// taskbar to the glyph, measured off the tray's own speaker. One number
+    /// for both themes, because an alpha this low lands the same distance
+    /// from a dark background as from a light one. A constant rather than a
+    /// setting, deliberately.
+    /// </summary>
+    private const int GhostAlpha = 60;
+
+    /// <summary>
     /// An icon for <paramref name="level"/>, sized for the notification area.
     /// The caller owns it and must dispose it.
     /// </summary>
     internal static RenderedIcon Render(VolumeLevel level)
     {
-        var size = IconSize();
-        var colour = TaskbarIsLight() ? Color.FromArgb(230, 0, 0, 0) : Color.FromArgb(240, 255, 255, 255);
+        var colour = TaskbarIsLight() ? LightTaskbar : DarkTaskbar;
 
-        // Every glyph of this font is exactly em-square: its advance width,
-        // its line height and its cell ascent are all one em, and the cell
-        // is what the designer drew the icon to fill. So an em of exactly
-        // the bitmap's size, drawn from the origin, puts the glyph's own
-        // grid over the bitmap's with no fractional offset left anywhere —
-        // which is the whole of making it crisp. Scaling the em to a
-        // fraction of the bitmap instead lands every outline between
-        // pixels, and that is what the icon used to be soft from.
-        using var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
-        using (var graphics = Graphics.FromImage(bitmap))
-        using (var font = new Font(Font, size, FontStyle.Regular, GraphicsUnit.Pixel))
-        using (var brush = new SolidBrush(colour))
-
-        // Typographic rather than the default format, which pads a string
-        // with the font's overhang allowance and would push the glyph back
-        // off that grid.
-        using (var format = (StringFormat)StringFormat.GenericTypographic.Clone())
-        {
-            format.FormatFlags |= StringFormatFlags.NoWrap | StringFormatFlags.NoClip;
-            format.Alignment = StringAlignment.Near;
-            format.LineAlignment = StringAlignment.Near;
-
-            graphics.Clear(Color.Transparent);
-
-            // Not ClearType: sub-pixel rendering has no meaning over alpha.
-            graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-
-            graphics.DrawString(VolumeGlyph.For(level), font, brush, PointF.Empty, format);
-        }
+        using var bitmap = TrayIconPainter.Paint(
+            VolumeGlyph.For(level),
+            GhostFor(level),
+            IconSize(),
+            Font,
+            colour,
+            Color.FromArgb(GhostAlpha, colour));
 
         // Icon.FromHandle does not take ownership of the handle, so the
         // handle has to be carried alongside the icon and destroyed with it.
         var handle = bitmap.GetHicon();
         return new RenderedIcon(Icon.FromHandle(handle), handle);
     }
+
+    /// <summary>
+    /// What is drawn faintly behind the level's own speaker: every wave, so
+    /// the ones above this level show as present and off, which is how
+    /// Windows draws them.
+    /// </summary>
+    /// <remarks>
+    /// Nothing for mute, which Windows draws with no waves at all; and
+    /// nothing at full volume either, where the speaker already has every
+    /// wave and a ghost of the same outline would only fringe its edges.
+    /// </remarks>
+    private static string? GhostFor(VolumeLevel level) =>
+        level is VolumeLevel.Muted or VolumeLevel.High ? null : VolumeGlyph.For(VolumeLevel.High);
 
     /// <summary>
     /// The size the notification area draws an icon at: the small-icon metric
