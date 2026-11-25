@@ -37,6 +37,14 @@ internal sealed class AudioService : IAudioService
     private readonly DeviceNotifications _deviceNotifications;
     private readonly AudioSessionIndex _sessions;
 
+    /// <summary>The three Windows roles, in the order Windows applies them.</summary>
+    private static readonly Role[] AllRoles = [Role.Console, Role.Multimedia, Role.Communications];
+
+    /// <summary>The pair Windows' own Sound settings moves as one.</summary>
+    private static readonly Role[] AudioRoles = [Role.Console, Role.Multimedia];
+
+    private static readonly Role[] CommunicationsRoles = [Role.Communications];
+
     /// <summary>Every endpoint we hold open, by Core Audio's endpoint id.</summary>
     private readonly Dictionary<string, Endpoint> _endpoints = new(StringComparer.Ordinal);
 
@@ -45,6 +53,15 @@ internal sealed class AudioService : IAudioService
 
     private string? _defaultOutputId;
     private string? _defaultInputId;
+
+    /// <summary>
+    /// The communications default per flow, which is a default of its own:
+    /// Windows lets calls go through one device while everything else goes
+    /// through another, and awoo follows both so a row can show either.
+    /// </summary>
+    private string? _commsOutputId;
+    private string? _commsInputId;
+
     private bool _disposed;
 
     /// <param name="dispatch">
@@ -159,26 +176,23 @@ internal sealed class AudioService : IAudioService
         Publish();
     }
 
-    public void SetDefaultDevice(string deviceId)
+    public void SetDefaultDevice(string deviceId, DefaultRole role)
     {
         if (_disposed || _policyConfig is null || !_endpoints.TryGetValue(deviceId, out var endpoint))
         {
             return;
         }
 
-        if (deviceId == DefaultIdFor(endpoint.Kind))
+        if (AlreadyHolds(deviceId, endpoint.Kind, role))
         {
             return;
         }
 
-        // All three roles together: Windows keeps a default per role, and a
-        // device that is the default for playback but not for calls is not
-        // what "set as default" means to anybody looking at one radio button.
-        foreach (var role in Roles)
+        foreach (var windowsRole in RolesOf(role))
         {
             try
             {
-                if (_policyConfig.SetDefaultEndpoint(deviceId, role) != CoreAudio.S_OK)
+                if (_policyConfig.SetDefaultEndpoint(deviceId, windowsRole) != CoreAudio.S_OK)
                 {
                     break;
                 }
@@ -215,8 +229,23 @@ internal sealed class AudioService : IAudioService
         _sessions.Dispose();
     }
 
-    /// <summary>The roles a "set as default" covers, in the order Windows applies them.</summary>
-    private static ReadOnlySpan<Role> Roles => [Role.Console, Role.Multimedia, Role.Communications];
+    /// <summary>
+    /// The Windows roles one of awoo's covers, in the order Windows applies
+    /// them.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="DefaultRole.All"/> is all three together: a device that is
+    /// the default for playback but not for calls is not what "set as
+    /// default" means to anybody looking at one radio button.
+    /// <see cref="DefaultRole.Audio"/> is the pair Windows' own Sound
+    /// settings moves as one, leaving calls where they are.
+    /// </remarks>
+    private static ReadOnlySpan<Role> RolesOf(DefaultRole role) => role switch
+    {
+        DefaultRole.Audio => AudioRoles,
+        DefaultRole.Communications => CommunicationsRoles,
+        _ => AllRoles,
+    };
 
     /// <summary>
     /// Brings the endpoint cache back in line with the machine: new devices
@@ -241,8 +270,10 @@ internal sealed class AudioService : IAudioService
             _endpoints.Remove(id);
         }
 
-        _defaultOutputId = DefaultId(DataFlow.Render);
-        _defaultInputId = DefaultId(DataFlow.Capture);
+        _defaultOutputId = DefaultId(DataFlow.Render, Role.Console);
+        _defaultInputId = DefaultId(DataFlow.Capture, Role.Console);
+        _commsOutputId = DefaultId(DataFlow.Render, Role.Communications);
+        _commsInputId = DefaultId(DataFlow.Capture, Role.Communications);
 
         Publish();
     }
@@ -413,6 +444,7 @@ internal sealed class AudioService : IAudioService
                 endpoint.Percent,
                 endpoint.IsMuted,
                 endpoint.Id == DefaultIdFor(endpoint.Kind),
+                endpoint.Id == CommunicationsIdFor(endpoint.Kind),
                 endpoint.Spatial))
             .ToArray();
 
@@ -485,14 +517,30 @@ internal sealed class AudioService : IAudioService
     private string? DefaultIdFor(DeviceKind kind) =>
         kind == DeviceKind.Output ? _defaultOutputId : _defaultInputId;
 
+    private string? CommunicationsIdFor(DeviceKind kind) =>
+        kind == DeviceKind.Output ? _commsOutputId : _commsInputId;
+
     /// <summary>
-    /// The default endpoint's id for one flow, or null when the machine has
-    /// none. E_NOTFOUND is the ordinary answer on a machine with no device of
-    /// that flow at all.
+    /// Whether this endpoint already holds every role a switch would set,
+    /// which makes the switch nothing to do. Asked per role-set rather than
+    /// of the default alone: a device can be what everything but calls goes
+    /// through, and a click on its communications radio has work to do.
     /// </summary>
-    private string? DefaultId(DataFlow flow)
+    private bool AlreadyHolds(string deviceId, DeviceKind kind, DefaultRole role) => role switch
     {
-        if (_enumerator.GetDefaultAudioEndpoint(flow, Role.Console, out var device) != CoreAudio.S_OK ||
+        DefaultRole.Communications => deviceId == CommunicationsIdFor(kind),
+        DefaultRole.Audio => deviceId == DefaultIdFor(kind),
+        _ => deviceId == DefaultIdFor(kind) && deviceId == CommunicationsIdFor(kind),
+    };
+
+    /// <summary>
+    /// The default endpoint's id for one flow and role, or null when the
+    /// machine has none. E_NOTFOUND is the ordinary answer on a machine with
+    /// no device of that flow at all.
+    /// </summary>
+    private string? DefaultId(DataFlow flow, Role role)
+    {
+        if (_enumerator.GetDefaultAudioEndpoint(flow, role, out var device) != CoreAudio.S_OK ||
             device is null)
         {
             return null;
@@ -598,10 +646,12 @@ internal sealed class AudioService : IAudioService
 
         public int OnDefaultDeviceChanged(DataFlow flow, Role role, string? deviceId)
         {
-            // The console role is the one awoo follows for both flows;
-            // multimedia and communications are separate defaults that
-            // SetDefaultDevice keeps in step with it.
-            return role == Role.Console ? Refresh() : CoreAudio.S_OK;
+            // Console and communications are the two defaults awoo shows, so
+            // either moving is news. Multimedia is not: it rides with console
+            // everywhere awoo or Windows' own settings set a default, and a
+            // refresh for it would only re-read what the console
+            // notification already brought.
+            return role is Role.Console or Role.Communications ? Refresh() : CoreAudio.S_OK;
         }
 
         public int OnPropertyValueChanged(string deviceId, PropertyKey key)

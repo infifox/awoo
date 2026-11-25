@@ -30,6 +30,8 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
 
     private string? _defaultOutputId;
     private string? _defaultInputId;
+    private string? _commsOutputId;
+    private string? _commsInputId;
 
     internal DevicesViewModel(IAudioService audio, SettingsService settings)
     {
@@ -38,6 +40,7 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
         Apply(audio.Devices);
         _audio.DevicesChanged += OnDevicesChanged;
         _settings.HiddenDevicesChanged += OnHiddenDevicesChanged;
+        _settings.SplitDefaultRolesChanged += OnSplitDefaultRolesChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -71,6 +74,24 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
     /// </summary>
     private void OnHiddenDevicesChanged(object? sender, EventArgs args) => Apply(_devices);
 
+    /// <summary>
+    /// The default markers split apart, or put back together, while the
+    /// flyout is open. Nothing about the devices has changed — every row
+    /// swaps one marker for two, or the other way about, where it stands.
+    /// </summary>
+    private void OnSplitDefaultRolesChanged(object? sender, EventArgs args)
+    {
+        foreach (var row in Outputs)
+        {
+            row.RestateSplit();
+        }
+
+        foreach (var row in Inputs)
+        {
+            row.RestateSplit();
+        }
+    }
+
     private void Apply(IReadOnlyList<AudioDeviceState> devices)
     {
         _devices = devices;
@@ -86,8 +107,8 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
         // before the switch has been through Windows. Once the service says
         // where the default actually is, the whole group states its case
         // again — which is also how a failed switch snaps back.
-        RestateIfDefaultMoved(Outputs, DeviceKind.Output, ref _defaultOutputId, shown);
-        RestateIfDefaultMoved(Inputs, DeviceKind.Input, ref _defaultInputId, shown);
+        RestateIfDefaultMoved(Outputs, DeviceKind.Output, ref _defaultOutputId, ref _commsOutputId, shown);
+        RestateIfDefaultMoved(Inputs, DeviceKind.Input, ref _defaultInputId, ref _commsInputId, shown);
 
         if (HasOutputs != hadOutputs)
         {
@@ -134,7 +155,7 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
 
             if (found < 0)
             {
-                rows.Insert(index, new DeviceRowViewModel(_audio, state));
+                rows.Insert(index, new DeviceRowViewModel(_audio, _settings, state));
                 continue;
             }
 
@@ -169,16 +190,24 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
         ObservableCollection<DeviceRowViewModel> rows,
         DeviceKind kind,
         ref string? remembered,
+        ref string? rememberedCommunications,
         IReadOnlyList<AudioDeviceState> devices)
     {
         var current = devices.FirstOrDefault(device => device.Kind == kind && device.IsDefault).Id;
-        if (current == remembered)
+        var currentCommunications = devices
+            .FirstOrDefault(device => device.Kind == kind && device.IsDefaultCommunications).Id;
+
+        if (current == remembered && currentCommunications == rememberedCommunications)
         {
             return;
         }
 
         remembered = current;
+        rememberedCommunications = currentCommunications;
 
+        // Both roles restated whichever of them moved: the two groups are
+        // small, and a row saying again what it already said costs a
+        // property-changed nobody acts on.
         foreach (var row in rows)
         {
             row.RestateDefault();

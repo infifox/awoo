@@ -11,6 +11,30 @@ internal enum DeviceKind
 }
 
 /// <summary>
+/// Which of Windows' default-device roles one "set as default" covers.
+/// Windows keeps a default per role — console, multimedia and communications
+/// — and awoo either moves all three together or sets the first two apart
+/// from the third, depending on the setting.
+/// </summary>
+internal enum DefaultRole
+{
+    /// <summary>
+    /// All three roles at once: what one radio button per device means, and
+    /// what awoo does unless it has been told to split them.
+    /// </summary>
+    All,
+
+    /// <summary>
+    /// Console and multimedia together, which is what Windows' own Sound
+    /// settings calls the default device. Leaves communications where it is.
+    /// </summary>
+    Audio,
+
+    /// <summary>The communications role alone: the device calls go through.</summary>
+    Communications,
+}
+
+/// <summary>
 /// One spatial sound format an output can be put into — Windows Sonic, Dolby
 /// Atmos and the rest — as <see cref="SpatialSound"/> found it.
 /// </summary>
@@ -93,7 +117,15 @@ internal sealed class SpatialState : IEquatable<SpatialState>
 /// <param name="Kind">Output or input.</param>
 /// <param name="Percent">Volume, 0–100.</param>
 /// <param name="IsMuted">Whether the endpoint is muted.</param>
-/// <param name="IsDefault">Whether this is the default device for its kind.</param>
+/// <param name="IsDefault">
+/// Whether this is the default device for its kind — the console role, which
+/// is what Windows' own Sound settings means by "default".
+/// </param>
+/// <param name="IsDefaultCommunications">
+/// Whether this is the communications default for its kind: the device
+/// Windows puts calls through. The same device as <paramref name="IsDefault"/>
+/// unless something has set the two apart.
+/// </param>
 /// <param name="Spatial">
 /// What spatial sound this endpoint offers and is in.
 /// <see cref="SpatialState.None"/> for every input and for an output that has
@@ -106,4 +138,5 @@ internal readonly record struct AudioDeviceState(
     int Percent,
     bool IsMuted,
     bool IsDefault,
+    bool IsDefaultCommunications,
     SpatialState Spatial);

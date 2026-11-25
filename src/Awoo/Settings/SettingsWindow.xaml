@@ -11,7 +11,7 @@
         <media:MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <!-- One page: the two settings awoo has, and the devices it will show.
+    <!-- One page: the settings awoo has, and the devices it will show.
          Everything else awoo could offer is either Windows' own setting or a
          decision the brief settled. -->
     <Grid Background="Transparent" Padding="24,20,24,24" RowSpacing="18">
@@ -50,6 +50,7 @@
         </Grid.Resources>
 
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -114,10 +115,38 @@
                 AutomationProperties.Name="Start with Windows" />
         </Grid>
 
+        <Grid Grid.Row="2" ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+                <TextBlock
+                    Text="Change default audio device and communications device independently"
+                    Style="{ThemeResource BodyStrongTextBlockStyle}"
+                    TextWrapping="Wrap" />
+
+                <TextBlock
+                    Text="Gives every device in the volume control two markers instead of one: the first sets the device everything plays through, the second the device calls go through. Turning this off again moves neither."
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+
+            <ToggleSwitch
+                x:Name="SplitRolesSwitch"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                MinWidth="0"
+                IsOn="{x:Bind ViewModel.SplitDefaultRoles, Mode=TwoWay}"
+                AutomationProperties.Name="Change default audio device and communications device independently" />
+        </Grid>
+
         <!-- Which devices the volume control lists. Everything plugged in is
              here: a device that is away cannot be pointed at, and it keeps
              whatever it was set to for when it comes back. -->
-        <StackPanel Grid.Row="2" Spacing="8">
+        <StackPanel Grid.Row="3" Spacing="8">
             <StackPanel Spacing="2">
                 <TextBlock
                     Text="Shown devices"

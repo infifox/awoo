@@ -34,6 +34,15 @@ internal sealed class SettingsService
     internal event EventHandler? HiddenDevicesChanged;
 
     /// <summary>
+    /// Raised when the default audio device and the default communications
+    /// device have been split apart, or put back together. The Devices tab's
+    /// rows listen to it for the same reason they listen to
+    /// <see cref="HiddenDevicesChanged"/>: an open flyout redraws rather than
+    /// waiting for awoo to be restarted.
+    /// </summary>
+    internal event EventHandler? SplitDefaultRolesChanged;
+
+    /// <summary>
     /// How far one notch of the wheel over the tray icon moves the volume.
     /// Clamped rather than refused: the setting has a range, and a value
     /// outside it is a value at the end of it.
@@ -45,6 +54,28 @@ internal sealed class SettingsService
         {
             VolumeStep = Math.Clamp(value, AppSettings.MinVolumeStep, AppSettings.MaxVolumeStep),
         });
+    }
+
+    /// <summary>
+    /// Whether the Devices tab sets the default audio device and the default
+    /// communications device apart, a marker each, rather than moving all
+    /// three of Windows' roles with one. Turning it off moves no defaults:
+    /// the two markers collapse back into one, and the next click on one sets
+    /// all three roles again.
+    /// </summary>
+    internal bool SplitDefaultRoles
+    {
+        get => _stored.SplitDefaultRoles;
+        set
+        {
+            if (value == _stored.SplitDefaultRoles)
+            {
+                return;
+            }
+
+            Store(_stored with { SplitDefaultRoles = value });
+            SplitDefaultRolesChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>Whether Windows starts awoo at sign-in. Read from, and written to, the Run key.</summary>

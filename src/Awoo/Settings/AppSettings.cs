@@ -48,6 +48,13 @@ internal sealed record AppSettings
     public bool AutostartRegistered { get; init; }
 
     /// <summary>
+    /// Whether the Devices tab draws the default audio device and the
+    /// default communications device as two markers per row rather than one.
+    /// Off is one marker that moves all three of Windows' roles together.
+    /// </summary>
+    public bool SplitDefaultRoles { get; init; }
+
+    /// <summary>
     /// The endpoints the user has hidden from the volume control, by Core
     /// Audio endpoint id — stable across unplugging and replugging, so a
     /// device that is away keeps its flag and comes back hidden.
@@ -99,10 +106,11 @@ internal sealed record AppSettings
         other is not null &&
         VolumeStep == other.VolumeStep &&
         AutostartRegistered == other.AutostartRegistered &&
+        SplitDefaultRoles == other.SplitDefaultRoles &&
         HiddenDeviceIds.SequenceEqual(other.HiddenDeviceIds, DeviceIdComparer);
 
     public override int GetHashCode() =>
-        HashCode.Combine(VolumeStep, AutostartRegistered, HiddenDeviceIds.Count);
+        HashCode.Combine(VolumeStep, AutostartRegistered, SplitDefaultRoles, HiddenDeviceIds.Count);
 
     /// <summary>
     /// The hidden list with the entries that name nothing taken out and the

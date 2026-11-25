@@ -1,12 +1,15 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Awoo.Audio;
+using Awoo.Settings;
 
 namespace Awoo.ViewModels;
 
 /// <summary>
 /// One audio endpoint as a row in the Devices tab: its name, its volume and
-/// mute, and whether it is the default for its kind.
+/// mute, and which of Windows' defaults for its kind it holds — one marker
+/// for all three roles, or a marker each for audio and for calls, as the
+/// setting has it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,16 +28,24 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
     private const string SpatialOffName = "Off";
 
     private readonly IAudioService _audio;
+    private readonly SettingsService _settings;
     private AudioDeviceState _state;
 
-    internal DeviceRowViewModel(IAudioService audio, AudioDeviceState state)
+    internal DeviceRowViewModel(IAudioService audio, SettingsService settings, AudioDeviceState state)
     {
         _audio = audio;
+        _settings = settings;
         _state = state;
 
         // The radio group is per kind: an output and an input are each the
         // default of their own list, so they must not unselect each other.
+        // The split view's two columns are two groups again, for the same
+        // reason — and groups of their own rather than the unsplit one's, so
+        // the markers that are not on screen cannot unselect the ones that
+        // are.
         GroupName = $"awoo.default.{state.Kind}";
+        AudioGroupName = $"awoo.default.audio.{state.Kind}";
+        CommunicationsGroupName = $"awoo.default.communications.{state.Kind}";
         CanSetDefault = audio.CanSetDefaultDevice;
 
         // This one is per device: spatial sound is a property of the
@@ -51,8 +62,28 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
 
     public string Name => _state.Name;
 
-    /// <summary>Which radio group this row's default marker belongs to.</summary>
+    /// <summary>Which radio group this row's single default marker belongs to.</summary>
     public string GroupName { get; }
+
+    /// <summary>Which group the split view's default audio marker belongs to.</summary>
+    public string AudioGroupName { get; }
+
+    /// <summary>Which group the split view's communications marker belongs to.</summary>
+    public string CommunicationsGroupName { get; }
+
+    /// <summary>
+    /// Whether this row draws the two markers rather than one: the setting,
+    /// read where it lives rather than copied, so the row and the settings
+    /// window can never disagree about it.
+    /// </summary>
+    public bool IsSplit => _settings.SplitDefaultRoles;
+
+    /// <summary>
+    /// The other half of <see cref="IsSplit"/>, because a template cannot
+    /// negate a binding: whichever of the two layouts is not shown is
+    /// collapsed, and one of them always is.
+    /// </summary>
+    public bool IsNotSplit => !IsSplit;
 
     /// <summary>
     /// False where this build of Windows would not give up the policy-config
@@ -87,8 +118,14 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Whether Windows' default for this kind of device is this one.</summary>
+    /// <summary>
+    /// Whether Windows' default for this kind of device is this one — what
+    /// the single marker shows, and what the split view's first marker shows.
+    /// </summary>
     public bool IsDefault => _state.IsDefault;
+
+    /// <summary>Whether this is the device Windows puts calls through.</summary>
+    public bool IsDefaultCommunications => _state.IsDefaultCommunications;
 
     public string PercentText => $"{_state.Percent}%";
 
@@ -97,9 +134,33 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
 
     public string MuteToolTip => _state.IsMuted ? "Unmute" : "Mute";
 
-    public string DefaultToolTip => _state.IsDefault
-        ? "Default device"
-        : CanSetDefault ? "Set as default device" : "Default device";
+    /// <summary>
+    /// The single marker's tooltip. Unqualified, because its one click sets
+    /// every role Windows has.
+    /// </summary>
+    public string DefaultToolTip => ToolTipFor(_state.IsDefault, "Default device", "Set as default device");
+
+    /// <summary>
+    /// The split view's first marker: the two columns are told apart by
+    /// their tooltips alone, so this one says which of the two it is.
+    /// </summary>
+    public string DefaultAudioToolTip =>
+        ToolTipFor(_state.IsDefault, "Default audio device", "Set as default audio device");
+
+    public string DefaultCommunicationsToolTip => ToolTipFor(
+        _state.IsDefaultCommunications,
+        "Default communications device",
+        "Set as default communications device");
+
+    /// <summary>
+    /// What a screen reader reads for the split view's first marker. The
+    /// device's name alone would have the two markers of a row announce
+    /// themselves identically, so each carries the role it sets.
+    /// </summary>
+    public string DefaultAudioAutomationName => $"{_state.Name}, default audio device";
+
+    public string DefaultCommunicationsAutomationName =>
+        $"{_state.Name}, default communications device";
 
     /// <summary>
     /// Whether to offer this row's spatial sound control at all. False for
@@ -137,6 +198,15 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
     private VolumeLevel Level => VolumeState.LevelOf(_state.Percent, _state.IsMuted, true);
 
     /// <summary>
+    /// What a default marker says on hover: what it is where it is already
+    /// selected, and what clicking it would do where it is not — unless this
+    /// build of Windows would not give up the switch, in which case the
+    /// marker is an indicator and promises nothing.
+    /// </summary>
+    private string ToolTipFor(bool holds, string held, string set) =>
+        holds || !CanSetDefault ? held : set;
+
+    /// <summary>
     /// Takes a fresh snapshot of the same endpoint, raising only what moved.
     /// Updating in place rather than replacing the row is what lets a slider
     /// be dragged while the service publishes every step of it.
@@ -149,6 +219,8 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         if (state.Name != previous.Name)
         {
             Raise(nameof(Name));
+            Raise(nameof(DefaultAudioAutomationName));
+            Raise(nameof(DefaultCommunicationsAutomationName));
         }
 
         if (state.Percent != previous.Percent)
@@ -167,6 +239,13 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
         {
             Raise(nameof(IsDefault));
             Raise(nameof(DefaultToolTip));
+            Raise(nameof(DefaultAudioToolTip));
+        }
+
+        if (state.IsDefaultCommunications != previous.IsDefaultCommunications)
+        {
+            Raise(nameof(IsDefaultCommunications));
+            Raise(nameof(DefaultCommunicationsToolTip));
         }
 
         if (VolumeState.LevelOf(state.Percent, state.IsMuted, true) !=
@@ -191,7 +270,23 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
     internal void RestateDefault()
     {
         Raise(nameof(IsDefault));
+        Raise(nameof(IsDefaultCommunications));
         Raise(nameof(DefaultToolTip));
+        Raise(nameof(DefaultAudioToolTip));
+        Raise(nameof(DefaultCommunicationsToolTip));
+    }
+
+    /// <summary>
+    /// Says the split setting has moved, which is what redraws an open
+    /// flyout: the row swaps one marker for two, or two for one, and then
+    /// restates which of them are selected — the markers coming on screen
+    /// have never been asked.
+    /// </summary>
+    internal void RestateSplit()
+    {
+        Raise(nameof(IsSplit));
+        Raise(nameof(IsNotSplit));
+        RestateDefault();
     }
 
     /// <summary>
@@ -207,7 +302,33 @@ public sealed class DeviceRowViewModel : INotifyPropertyChanged
     {
         if (CanSetDefault && !_state.IsDefault)
         {
-            _audio.SetDefaultDevice(_state.Id);
+            _audio.SetDefaultDevice(_state.Id, DefaultRole.All);
+        }
+    }
+
+    /// <summary>
+    /// Makes this device the default audio device for its kind — console and
+    /// multimedia, what Windows' own Sound settings moves — leaving calls
+    /// where they are. The split view's first marker; guarded like
+    /// <see cref="MakeDefault"/>, and for the same reason.
+    /// </summary>
+    public void MakeDefaultAudio()
+    {
+        if (CanSetDefault && !_state.IsDefault)
+        {
+            _audio.SetDefaultDevice(_state.Id, DefaultRole.Audio);
+        }
+    }
+
+    /// <summary>
+    /// Makes this device the one Windows puts calls through, leaving
+    /// everything else where it is. The split view's second marker.
+    /// </summary>
+    public void MakeDefaultCommunications()
+    {
+        if (CanSetDefault && !_state.IsDefaultCommunications)
+        {
+            _audio.SetDefaultDevice(_state.Id, DefaultRole.Communications);
         }
     }
 

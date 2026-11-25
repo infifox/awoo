@@ -12,5 +12,5 @@ the lock then guards role-by-role.
 
 ## Tasks
 
-- [ ] 01: Change default audio device and communications device independently — [details](01-split-communications-device.md) — on windows
+- [x] 01: Change default audio device and communications device independently — [details](01-split-communications-device.md) — on windows
 - [ ] 02: Prevent Windows from automatically switching my audio device — [details](02-default-device-lock.md) — on windows

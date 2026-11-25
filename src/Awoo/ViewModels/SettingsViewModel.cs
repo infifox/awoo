@@ -6,8 +6,8 @@ using Awoo.Settings;
 namespace Awoo.ViewModels;
 
 /// <summary>
-/// The settings window: the two switches over <see cref="SettingsService"/>,
-/// and a row per connected device for hiding it from the volume control.
+/// The settings window: the switches over <see cref="SettingsService"/>, and
+/// a row per connected device for hiding it from the volume control.
 /// </summary>
 /// <remarks>
 /// Write-through, the way <see cref="VolumeViewModel"/> is: what is shown is
@@ -55,6 +55,22 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
         {
             _settings.StartWithWindows = value;
             Raise(nameof(StartWithWindows));
+        }
+    }
+
+    /// <summary>
+    /// Whether the volume control sets the default audio device and the
+    /// default communications device apart. Turning it off moves no
+    /// defaults: the two markers become one again, and what calls were going
+    /// through they go on going through until something sets a default.
+    /// </summary>
+    public bool SplitDefaultRoles
+    {
+        get => _settings.SplitDefaultRoles;
+        set
+        {
+            _settings.SplitDefaultRoles = value;
+            Raise(nameof(SplitDefaultRoles));
         }
     }
 
