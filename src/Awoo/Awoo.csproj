@@ -97,7 +97,38 @@
     <Error Condition="!Exists('$(AwooTapOutDir)AwooTap.dll')"
            Text="The native tray DLL build did not produce $(AwooTapOutDir)AwooTap.dll." />
 
-    <Copy SourceFiles="@(_AwooTapBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <!--
+      Explorer keeps the TAP mapped for as long as it runs — awoo injects it and
+      nothing unloads it again — so the copy beside awoo.exe cannot be
+      overwritten while a machine that has hidden its volume icon is still up,
+      and the build would stop on a locked file. A mapped DLL can still be
+      renamed, which is the one thing the loader's path matching needs, so the
+      old copy goes aside and the copy lands.
+
+      This only rescues the build. The running Explorer carries on with the
+      module it already has, since the loader answers a load of that path with
+      what is mapped there rather than reading the file again: a changed TAP
+      reaches Explorer when Explorer next restarts, and not before.
+    -->
+    <ItemGroup>
+      <!-- Copies moved aside by an earlier build, now that Explorer has let go. -->
+      <_AwooTapInUse Include="$(OutDir)AwooTap.dll.in-use-*" />
+    </ItemGroup>
+    <Delete Files="@(_AwooTapInUse)" ContinueOnError="true" />
+
+    <!-- Retries="0": a locked TAP is not a file somebody is about to let go of,
+         so the ten one-second retries would only stall every build. -->
+    <Copy SourceFiles="@(_AwooTapBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"
+          Retries="0" ContinueOnError="true" />
+    <PropertyGroup>
+      <_AwooTapCopied>$(MSBuildLastTaskResult)</_AwooTapCopied>
+    </PropertyGroup>
+    <Move Condition="'$(_AwooTapCopied)' != 'true'"
+          SourceFiles="$(OutDir)AwooTap.dll"
+          DestinationFiles="$(OutDir)AwooTap.dll.in-use-$([System.DateTime]::UtcNow.Ticks)"
+          ContinueOnError="true" />
+    <Copy Condition="'$(_AwooTapCopied)' != 'true'"
+          SourceFiles="@(_AwooTapBinary)" DestinationFolder="$(OutDir)" />
   </Target>
 
   <!--

@@ -252,6 +252,15 @@ build, which is the one thing here that cannot be fetched per-user. Without
 it the build stops and says so, rather than producing an `awoo.exe` whose hide
 setting could never work.
 
+Explorer keeps that DLL mapped from the moment Awoo hides the icon, and
+nothing unloads it again, so a rebuild cannot overwrite the copy beside
+`awoo.exe`. The build moves the old one aside rather than stopping on it — but
+the running Explorer carries on with the module it already has, because the
+loader answers a load of that path with what is mapped there rather than
+reading the file again. **A change to `src\AwooTap` reaches Explorer only when
+Explorer next restarts.** To try one: quit Awoo, restart Explorer, then build
+and run.
+
 To build what a release ships — the self-contained publish, and then the
 installer over it:
 
