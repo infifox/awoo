@@ -2,12 +2,13 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Awoo.Audio;
 using Awoo.Settings;
+using Awoo.Tray;
 
 namespace Awoo.ViewModels;
 
 /// <summary>
-/// The settings window: the switches over <see cref="SettingsService"/>, and
-/// a row per connected device for hiding it from the volume control.
+/// The settings window: the switches over <see cref="SettingsService"/>, and a
+/// row per connected device for hiding it from the volume control.
 /// </summary>
 /// <remarks>
 /// Write-through, the way <see cref="VolumeViewModel"/> is: what is shown is
@@ -19,13 +20,19 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
 {
     private readonly SettingsService _settings;
     private readonly IAudioService _audio;
+    private readonly SystemVolumeIconService _volumeIcon;
 
-    internal SettingsViewModel(SettingsService settings, IAudioService audio)
+    internal SettingsViewModel(
+        SettingsService settings,
+        IAudioService audio,
+        SystemVolumeIconService volumeIcon)
     {
         _settings = settings;
         _audio = audio;
+        _volumeIcon = volumeIcon;
         Apply(audio.Devices);
         _audio.DevicesChanged += OnDevicesChanged;
+        _volumeIcon.StateChanged += OnVolumeIconStateChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -75,6 +82,24 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Whether awoo hides Windows' own volume icon while it is running. Off by
+    /// default; flipping it hides or restores the stock icon there and then.
+    /// </summary>
+    public bool HideSystemVolumeIcon
+    {
+        get => _settings.HideSystemVolumeIcon;
+        set
+        {
+            _settings.HideSystemVolumeIcon = value;
+            Raise(nameof(HideSystemVolumeIcon));
+
+            // Turning it off takes the note with it immediately, rather than
+            // leaving it up until the restore has been through Explorer.
+            Raise(nameof(HideIsNotWorking));
+        }
+    }
+
+    /// <summary>
     /// Whether awoo holds Windows to the devices the user selected. Turning it
     /// on takes the defaults as they stand right now as the selection to hold;
     /// turning it off leaves every default exactly where it is and stops
@@ -89,6 +114,14 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
             Raise(nameof(LockDefaultDevices));
         }
     }
+
+    /// <summary>
+    /// Whether the note under the switch is showing: the setting is on and the
+    /// stock icon is still there. The one place awoo says so — hiding reaches
+    /// into Explorer, and a Windows update can put the icon out of reach
+    /// without anything being wrong with awoo.
+    /// </summary>
+    public bool HideIsNotWorking => _volumeIcon.HideIsNotWorking;
 
     /// <summary>
     /// The connected outputs, each with its visibility switch. Only what is
@@ -109,11 +142,16 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
     public bool IsEmpty => Outputs.Count == 0 && Inputs.Count == 0;
 
     /// <summary>
-    /// Lets go of the device list. The window is closed rather than hidden,
-    /// and a view model still listening to the service would be a window's
-    /// worth of rows kept alive by every settings window ever opened.
+    /// Lets go of the device list and of the volume icon's state. The window
+    /// is closed rather than hidden, and a view model still listening to the
+    /// services would be a window's worth of rows kept alive by every settings
+    /// window ever opened.
     /// </summary>
-    public void Dispose() => _audio.DevicesChanged -= OnDevicesChanged;
+    public void Dispose()
+    {
+        _audio.DevicesChanged -= OnDevicesChanged;
+        _volumeIcon.StateChanged -= OnVolumeIconStateChanged;
+    }
 
     private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices)
     {
@@ -125,6 +163,8 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
             Apply(devices);
         }
     }
+
+    private void OnVolumeIconStateChanged(object? sender, EventArgs args) => Raise(nameof(HideIsNotWorking));
 
     private void Apply(IReadOnlyList<AudioDeviceState> devices)
     {

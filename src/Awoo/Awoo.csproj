@@ -49,6 +49,108 @@
   </ItemGroup>
 
   <!--
+    The native tray TAP DLL (src/AwooTap) that hides the stock volume icon.
+    The .NET SDK's MSBuild cannot drive a C++ vcxproj, so Visual Studio's
+    MSBuild is located with vswhere and run as a nested build, and its DLL is
+    dropped beside awoo.exe so a plain `dotnet build` — and the preview that
+    runs it — has the whole feature. PublishAwooTap below carries it on into
+    the publish folder, which is what the portable zip and the installer's
+    payload are cut from.
+
+    Both targets fail the build rather than let the DLL go missing. awoo
+    without it beside the exe looks exactly like a Windows update having moved
+    the icon out of reach — the setting reports it cannot hide the icon, and
+    nothing would say the payload was the real problem.
+  -->
+  <PropertyGroup>
+    <AwooTapProject>$(MSBuildThisFileDirectory)..\AwooTap\AwooTap.vcxproj</AwooTapProject>
+    <AwooTapOutDir>$(MSBuildThisFileDirectory)..\AwooTap\build\x64\$(Configuration)\</AwooTapOutDir>
+    <VsWhere>$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer\vswhere.exe</VsWhere>
+  </PropertyGroup>
+
+  <Target Name="BuildAwooTap" AfterTargets="Build">
+    <Error Condition="!Exists('$(VsWhere)')"
+           Text="Cannot build the native tray DLL: vswhere.exe was not found at '$(VsWhere)'. Visual Studio (or the Build Tools) with the C++ x64 toolset is required to build AwooTap.dll." />
+
+    <!-- The newest VS install that carries the C++ x64 toolset. -->
+    <Exec Command="&quot;$(VsWhere)&quot; -products * -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath"
+          ConsoleToMSBuild="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="VsInstallPath" />
+    </Exec>
+
+    <PropertyGroup>
+      <VcMsBuild>$(VsInstallPath)\MSBuild\Current\Bin\MSBuild.exe</VcMsBuild>
+    </PropertyGroup>
+
+    <Error Condition="'$(VsInstallPath)' == '' or !Exists('$(VcMsBuild)')"
+           Text="Cannot build the native tray DLL: no Visual Studio install with the C++ x64 toolset (Microsoft.VisualStudio.Component.VC.Tools.x86.x64) was found. Install the 'Desktop development with C++' workload to build AwooTap.dll." />
+
+    <!-- OutDir/IntDir live in the vcxproj itself; passing a path ending in a
+         backslash through the command line would be read as an escaped quote. -->
+    <Exec Command="&quot;$(VcMsBuild)&quot; &quot;$(AwooTapProject)&quot; /t:Build /p:Configuration=$(Configuration) /p:Platform=x64 /nologo /v:minimal" />
+
+    <ItemGroup>
+      <_AwooTapBinary Include="$(AwooTapOutDir)AwooTap.dll" />
+      <_AwooTapBinary Include="$(AwooTapOutDir)AwooTap.pdb" Condition="Exists('$(AwooTapOutDir)AwooTap.pdb')" />
+    </ItemGroup>
+
+    <Error Condition="!Exists('$(AwooTapOutDir)AwooTap.dll')"
+           Text="The native tray DLL build did not produce $(AwooTapOutDir)AwooTap.dll." />
+
+    <!--
+      Explorer keeps the TAP mapped for as long as it runs — awoo injects it and
+      nothing unloads it again — so the copy beside awoo.exe cannot be
+      overwritten while a machine that has hidden its volume icon is still up,
+      and the build would stop on a locked file. A mapped DLL can still be
+      renamed, which is the one thing the loader's path matching needs, so the
+      old copy goes aside and the copy lands.
+
+      This only rescues the build. The running Explorer carries on with the
+      module it already has, since the loader answers a load of that path with
+      what is mapped there rather than reading the file again: a changed TAP
+      reaches Explorer when Explorer next restarts, and not before.
+    -->
+    <ItemGroup>
+      <!-- Copies moved aside by an earlier build, now that Explorer has let go. -->
+      <_AwooTapInUse Include="$(OutDir)AwooTap.dll.in-use-*" />
+    </ItemGroup>
+    <Delete Files="@(_AwooTapInUse)" ContinueOnError="true" />
+
+    <!-- Retries="0": a locked TAP is not a file somebody is about to let go of,
+         so the ten one-second retries would only stall every build. -->
+    <Copy SourceFiles="@(_AwooTapBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"
+          Retries="0" ContinueOnError="true" />
+    <PropertyGroup>
+      <_AwooTapCopied>$(MSBuildLastTaskResult)</_AwooTapCopied>
+    </PropertyGroup>
+    <Move Condition="'$(_AwooTapCopied)' != 'true'"
+          SourceFiles="$(OutDir)AwooTap.dll"
+          DestinationFiles="$(OutDir)AwooTap.dll.in-use-$([System.DateTime]::UtcNow.Ticks)"
+          ContinueOnError="true" />
+    <Copy Condition="'$(_AwooTapCopied)' != 'true'"
+          SourceFiles="@(_AwooTapBinary)" DestinationFolder="$(OutDir)" />
+  </Target>
+
+  <!--
+    `dotnet publish` copies the files the SDK's own item groups name, and the
+    TAP arrives in $(OutDir) by the Copy above rather than as an item of this
+    project — so a publish, and the portable zip and installer payload cut
+    from it, would go out without the DLL. Name it as a file to publish. Its
+    .pdb stays behind: that one is the build's, not the release's.
+  -->
+  <Target Name="PublishAwooTap" AfterTargets="ComputeResolvedFilesToPublishList">
+    <Error Condition="!Exists('$(OutDir)AwooTap.dll')"
+           Text="No AwooTap.dll in $(OutDir), so awoo would publish without the native tray TAP and could never hide the stock volume icon." />
+
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(OutDir)AwooTap.dll">
+        <RelativePath>AwooTap.dll</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <!--
     The XAML compiler writes awoo's compiled markup (the .xbf files) and its
     resource index (awoo.pri) straight into $(OutDir) rather than through the
     item groups `dotnet publish` reads. So a build runs and a publish of the

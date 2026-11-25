@@ -91,6 +91,18 @@ internal sealed record AppSettings
         LockedCommunicationsInputId);
 
     /// <summary>
+    /// Whether awoo hides Windows' own volume icon from the notification area
+    /// while it is running, so the tray has one speaker rather than two.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, and off is simply this default rather than a first-run
+    /// decision recorded somewhere: hiding reaches into Explorer to do its
+    /// work (see <see cref="Tray.SystemVolumeIconHider"/>), which is not
+    /// something to start doing to somebody who never asked for it.
+    /// </remarks>
+    public bool HideSystemVolumeIcon { get; init; }
+
+    /// <summary>
     /// The endpoints the user has hidden from the volume control, by Core
     /// Audio endpoint id — stable across unplugging and replugging, so a
     /// device that is away keeps its flag and comes back hidden.
@@ -158,6 +170,7 @@ internal sealed record AppSettings
         SameId(LockedInputId, other.LockedInputId) &&
         SameId(LockedCommunicationsOutputId, other.LockedCommunicationsOutputId) &&
         SameId(LockedCommunicationsInputId, other.LockedCommunicationsInputId) &&
+        HideSystemVolumeIcon == other.HideSystemVolumeIcon &&
         HiddenDeviceIds.SequenceEqual(other.HiddenDeviceIds, DeviceIdComparer);
 
     public override int GetHashCode() => HashCode.Combine(
@@ -165,6 +178,7 @@ internal sealed record AppSettings
         AutostartRegistered,
         SplitDefaultRoles,
         LockDefaultDevices,
+        HideSystemVolumeIcon,
         HiddenDeviceIds.Count);
 
     /// <summary>

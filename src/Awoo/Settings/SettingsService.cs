@@ -53,6 +53,14 @@ internal sealed class SettingsService
     internal event EventHandler? LockDefaultDevicesChanged;
 
     /// <summary>
+    /// Raised when <see cref="HideSystemVolumeIcon"/> has been turned on or
+    /// off. What <see cref="Tray.SystemVolumeIconService"/> listens to: the
+    /// switch hides or restores the stock icon as it is flipped, not at the
+    /// next start.
+    /// </summary>
+    internal event EventHandler? HideSystemVolumeIconChanged;
+
+    /// <summary>
     /// How far one notch of the wheel over the tray icon moves the volume.
     /// Clamped rather than refused: the setting has a range, and a value
     /// outside it is a value at the end of it.
@@ -119,6 +127,30 @@ internal sealed class SettingsService
     {
         get => Autostart.IsEnabled;
         set => Autostart.TrySet(value);
+    }
+
+    /// <summary>
+    /// Whether awoo hides Windows' own volume icon while it runs. Off by
+    /// default; see <see cref="AppSettings.HideSystemVolumeIcon"/>.
+    /// </summary>
+    /// <remarks>
+    /// Stored here and acted on by <see cref="Tray.SystemVolumeIconService"/>,
+    /// which listens for the change: a setting that reaches into Explorer
+    /// cannot be applied from the property that records it.
+    /// </remarks>
+    internal bool HideSystemVolumeIcon
+    {
+        get => _stored.HideSystemVolumeIcon;
+        set
+        {
+            if (value == _stored.HideSystemVolumeIcon)
+            {
+                return;
+            }
+
+            Store(_stored with { HideSystemVolumeIcon = value });
+            HideSystemVolumeIconChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>

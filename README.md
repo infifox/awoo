@@ -30,6 +30,9 @@ percentage and mute](docs/flyout-devices.png)
   volume, middle-click to mute.
 - **A tray icon that is the volume**, drawn from the system icon font, with
   the device and its percentage on hover.
+- **One speaker in the tray, not two** — a switch that takes Windows' own
+  volume icon out of the notification area while Awoo is running, and puts it
+  back when Awoo exits. Off by default.
 - **Starts with Windows**, on by default, with a switch to turn it off.
 - Volume caps at 100%: Awoo does not over-amplify. Windows' own volume-key
   OSD is left alone.
@@ -163,7 +166,7 @@ guess at the position while it is tucked away.
 
 ## Settings
 
-**Settings** on the icon's right-click menu opens a window with the five
+**Settings** on the icon's right-click menu opens a window with the six
 choices Awoo has:
 
 - **Volume step** — how far one notch of the wheel moves the volume, 1 to 25
@@ -191,6 +194,14 @@ choices Awoo has:
   remembered and held separately. Unplug a remembered device and Awoo leaves
   Windows' fallback alone until it is back, then takes it again on its own.
   Turning the lock off reverts nothing ever after.
+- **Hide the Windows volume icon** — off by default. Turn it on and Windows'
+  own speaker leaves the notification area, so the tray has one volume icon
+  rather than two; exiting Awoo brings it back, and so does restarting
+  Explorer, after which Awoo hides it again. Windows 11 has no setting for
+  this, so Awoo does it by reaching into Explorer's taskbar directly — which
+  is why the switch is off until you ask for it, and why a Windows update
+  could put the icon out of reach. If that happens the switch says so and
+  nothing else about Awoo is affected.
 - **Devices** — a switch for every connected output and input. Turn one off
   and it leaves the flyout: out of the Devices tab, and out of every
   application's **Play on** menu. The device itself is untouched — nothing is
@@ -225,6 +236,15 @@ own property store, where Windows publishes a record per format saying
 whether it is usable here and now — the property store is documented, the key
 is not.
 
+Hiding Windows' own volume icon is the same shape of bargain. Windows 11 has
+no setting, policy or registry value for it any more, so Awoo loads a small
+DLL of its own into Explorer through `InitializeXamlDiagnosticsEx` — the
+documented entry point Visual Studio's Live Visual Tree uses — walks the
+taskbar's XAML tree and collapses the icon it finds there. The API is
+documented; the tree is not. **A Windows update that rearranges the taskbar
+would stop the hide working**, which is why the switch is off by default and
+says so when it cannot do its job. Nothing else about Awoo depends on it.
+
 It would not take the rest with it. Where a build of Windows will not hand one
 over, Awoo goes quiet about that feature and nothing else is affected: the
 default markers stay as read-only indicators of which device is in use, the
@@ -252,6 +272,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Run
 Drop `-Run` to build without starting it, and add `-Configuration Release` for
 a release build. The result is a plain `awoo.exe` under `src\Awoo\bin`: Awoo
 is an unpackaged WinUI 3 app, so there is no MSIX and no install step.
+
+It also needs Visual Studio's **C++ x64 toolset** — the "Desktop development
+with C++" workload, of either Visual Studio or the standalone Build Tools.
+`src\AwooTap` is the small native DLL Awoo loads into Explorer to hide the
+stock volume icon, and the .NET SDK cannot compile C++: the project finds
+Visual Studio's MSBuild with `vswhere` and runs it as a step of the ordinary
+build, which is the one thing here that cannot be fetched per-user. Without
+it the build stops and says so, rather than producing an `awoo.exe` whose hide
+setting could never work.
+
+Explorer keeps that DLL mapped from the moment Awoo hides the icon, and
+nothing unloads it again, so a rebuild cannot overwrite the copy beside
+`awoo.exe`. The build moves the old one aside rather than stopping on it — but
+the running Explorer carries on with the module it already has, because the
+loader answers a load of that path with what is mapped there rather than
+reading the file again. **A change to `src\AwooTap` reaches Explorer only when
+Explorer next restarts.** To try one: quit Awoo, restart Explorer, then build
+and run.
 
 To build what a release ships — the self-contained publish, and then the
 installer over it:

@@ -24,6 +24,11 @@ runs:
       with:
         dotnet-version: '10.0.x'
 
+    # This also builds src/AwooTap -- the native TAP awoo loads into Explorer
+    # to hide the stock volume icon -- through Visual Studio's MSBuild, which
+    # the project locates with vswhere. The windows runner images carry the
+    # C++ x64 toolset; an image that ever stops carrying it fails this step
+    # with a message saying so, rather than packaging without the DLL.
     - name: Build
       shell: pwsh
       run: dotnet build src/Awoo/Awoo.csproj -c Release -p:Version=${{ inputs.version }}
@@ -37,6 +42,19 @@ runs:
         -p:SelfContained=true
         -p:Version=${{ inputs.version }}
         -p:PublishDir=${{ github.workspace }}/artifacts/portable/
+
+    # awoo loads AwooTap.dll out of its own folder, so a payload without it is
+    # a download whose hide-the-volume-icon setting can never work -- and from
+    # inside the app that looks the same as a Windows update having moved the
+    # icon. Checked before the artifacts are built rather than after, and the
+    # installer takes this folder wholesale, so this covers both of them.
+    - name: Check the native tray TAP is in the payload
+      shell: pwsh
+      run: |
+        if (-not (Test-Path artifacts/portable/AwooTap.dll)) {
+          throw 'The portable publish has no AwooTap.dll: awoo could never hide the stock volume icon.'
+        }
+        Get-Item artifacts/portable/AwooTap.dll | ForEach-Object { "{0,8:N0} KB  {1}" -f ($_.Length/1KB), $_.Name }
 
     - name: Zip the portable build
       shell: pwsh
@@ -79,4 +97,12 @@ runs:
         )
         $missing = $expected | Where-Object { -not (Test-Path $_) }
         if ($missing) { throw "Not produced: $($missing -join ', ')" }
+
+        # And that the zip people download really carries the TAP, rather than
+        # the folder it was made from having carried it.
+        $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $expected[0]))
+        try { $tap = @($zip.Entries | Where-Object { $_.FullName -eq 'AwooTap.dll' }).Count }
+        finally { $zip.Dispose() }
+        if ($tap -eq 0) { throw "$($expected[0]) has no AwooTap.dll at its root." }
+
         Get-ChildItem artifacts/dist | ForEach-Object { "{0,8:N1} MB  {1}" -f ($_.Length/1MB), $_.Name }

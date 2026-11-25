@@ -8,6 +8,10 @@ publish/
 *.user
 *.suo
 
+# Native TAP DLL build output (src/AwooTap, built via VS MSBuild)
+src/AwooTap/build/
+src/AwooTap/x64/
+
 # Locally bootstrapped SDK (see build.ps1)
 .dotnet/
 
