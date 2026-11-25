@@ -108,7 +108,7 @@ public partial class App : Application
 
     /// <summary>
     /// Opens the settings window, or brings up the one already open: two
-    /// windows of the same two settings could only disagree with each other.
+    /// windows of the same settings could only disagree with each other.
     /// </summary>
     private void ShowSettings()
     {
