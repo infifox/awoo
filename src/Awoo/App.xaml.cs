@@ -21,11 +21,19 @@ public partial class App : Application
     /// </summary>
     private static Mutex? _instanceLock;
 
+    /// <summary>
+    /// The dev-only switch that drives task 02's hide engine. Task 03 replaces
+    /// it with a real settings toggle; until then it is how the feature is
+    /// exercised. <c>--hide-system-volume-icon</c>.
+    /// </summary>
+    private const string HideVolumeIconSwitch = "--hide-system-volume-icon";
+
     private AudioService? _audio;
     private SettingsService? _settings;
     private FlyoutWindow? _flyout;
     private SettingsWindow? _settingsWindow;
     private TrayIconController? _tray;
+    private SystemVolumeIconHider? _volumeIconHider;
 
     public App()
     {
@@ -77,7 +85,23 @@ public partial class App : Application
         _tray.SettingsRequested += (_, _) => ShowSettings();
         _tray.ExitRequested += (_, _) => Shutdown();
         _tray.Show();
+
+        // The hide engine, behind the dev switch for this task. Injecting into
+        // Explorer and waiting for the DLL to report in would stall startup,
+        // and none of it needs the UI thread, so it runs off to the side; the
+        // tray is already up and awoo is fully working whatever it comes to.
+        if (WantsVolumeIconHidden())
+        {
+            var hider = new SystemVolumeIconHider();
+            _volumeIconHider = hider;
+            Task.Run(() => hider.Hide());
+        }
     }
+
+    /// <summary>Whether the dev switch to hide the stock volume icon was passed.</summary>
+    private static bool WantsVolumeIconHidden() =>
+        Environment.GetCommandLineArgs().Any(
+            arg => string.Equals(arg, HideVolumeIconSwitch, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Opens the settings window, or brings up the one already open: two
@@ -106,6 +130,12 @@ public partial class App : Application
     /// </summary>
     private void Shutdown()
     {
+        // Before the tray goes: the human chose that exiting awoo always
+        // brings the stock icon back, so no volume icon is ever lost with awoo
+        // gone. A no-op if nothing was hidden.
+        _volumeIconHider?.Restore();
+        _volumeIconHider = null;
+
         _tray?.Dispose();
         _tray = null;
 

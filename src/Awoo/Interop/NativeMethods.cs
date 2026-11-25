@@ -84,6 +84,22 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool SetForegroundWindow(IntPtr hwnd);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWindow(IntPtr hwnd);
+
+    /// <summary>The thread that owns a window, and — the part awoo wants — the process behind it.</summary>
+    [LibraryImport("user32.dll", SetLastError = true)]
+    internal static partial uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
+    /// <summary>
+    /// Sends a window a message and waits for it to be handled, the reply the
+    /// LRESULT. Used to talk to the tray TAP's window inside Explorer, where
+    /// the reply is a small integer that crosses the process boundary as is.
+    /// </summary>
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
+    internal static partial IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
     /// <summary>SWP_NOZORDER — leave the window where it is in the z-order.</summary>
     internal const uint SWP_NOZORDER = 0x0004;
 

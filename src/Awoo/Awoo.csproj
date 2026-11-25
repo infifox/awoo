@@ -49,6 +49,53 @@
   </ItemGroup>
 
   <!--
+    The native tray TAP DLL (src/AwooTap) that hides the stock volume icon.
+    The .NET SDK's MSBuild cannot drive a C++ vcxproj, so Visual Studio's
+    MSBuild is located with vswhere and run as a nested build, and its DLL is
+    dropped beside awoo.exe so a plain `dotnet build` — and the preview that
+    runs it — has the whole feature. Task 04 carries this through the publish,
+    zip and installer paths and the no-Visual-Studio story; here it is just
+    enough that a local build produces it.
+  -->
+  <PropertyGroup>
+    <AwooTapProject>$(MSBuildThisFileDirectory)..\AwooTap\AwooTap.vcxproj</AwooTapProject>
+    <AwooTapOutDir>$(MSBuildThisFileDirectory)..\AwooTap\build\x64\$(Configuration)\</AwooTapOutDir>
+    <VsWhere>$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer\vswhere.exe</VsWhere>
+  </PropertyGroup>
+
+  <Target Name="BuildAwooTap" AfterTargets="Build">
+    <Error Condition="!Exists('$(VsWhere)')"
+           Text="Cannot build the native tray DLL: vswhere.exe was not found at '$(VsWhere)'. Visual Studio (or the Build Tools) with the C++ x64 toolset is required to build AwooTap.dll." />
+
+    <!-- The newest VS install that carries the C++ x64 toolset. -->
+    <Exec Command="&quot;$(VsWhere)&quot; -products * -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath"
+          ConsoleToMSBuild="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="VsInstallPath" />
+    </Exec>
+
+    <PropertyGroup>
+      <VcMsBuild>$(VsInstallPath)\MSBuild\Current\Bin\MSBuild.exe</VcMsBuild>
+    </PropertyGroup>
+
+    <Error Condition="'$(VsInstallPath)' == '' or !Exists('$(VcMsBuild)')"
+           Text="Cannot build the native tray DLL: no Visual Studio install with the C++ x64 toolset (Microsoft.VisualStudio.Component.VC.Tools.x86.x64) was found. Install the 'Desktop development with C++' workload to build AwooTap.dll." />
+
+    <!-- OutDir/IntDir live in the vcxproj itself; passing a path ending in a
+         backslash through the command line would be read as an escaped quote. -->
+    <Exec Command="&quot;$(VcMsBuild)&quot; &quot;$(AwooTapProject)&quot; /t:Build /p:Configuration=$(Configuration) /p:Platform=x64 /nologo /v:minimal" />
+
+    <ItemGroup>
+      <_AwooTapBinary Include="$(AwooTapOutDir)AwooTap.dll" />
+      <_AwooTapBinary Include="$(AwooTapOutDir)AwooTap.pdb" Condition="Exists('$(AwooTapOutDir)AwooTap.pdb')" />
+    </ItemGroup>
+
+    <Error Condition="!Exists('$(AwooTapOutDir)AwooTap.dll')"
+           Text="The native tray DLL build did not produce $(AwooTapOutDir)AwooTap.dll." />
+
+    <Copy SourceFiles="@(_AwooTapBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!--
     The XAML compiler writes awoo's compiled markup (the .xbf files) and its
     resource index (awoo.pri) straight into $(OutDir) rather than through the
     item groups `dotnet publish` reads. So a build runs and a publish of the
