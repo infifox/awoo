@@ -171,14 +171,18 @@ internal sealed class DefaultDeviceLock : IDisposable
         Holder(devices, DeviceKind.Input, DefaultRole.Communications));
 
     /// <summary>
-    /// The device holding one role, or null where nothing does — a machine
-    /// with no device of that kind at all.
+    /// The device to remember for one role when the lock is turned on, or
+    /// null where nothing shows it — a machine with no device of that kind
+    /// at all. Audio goes by the console role alone, which is what Windows'
+    /// own Sound settings shows as the default: a multimedia role a per-role
+    /// tool had moved elsewhere must not leave the lock holding nothing, and
+    /// the first assert takes the pair back onto this device together.
     /// </summary>
     private static string? Holder(IReadOnlyList<AudioDeviceState> devices, DeviceKind kind, DefaultRole role)
     {
         foreach (var device in devices)
         {
-            if (device.Kind == kind && Holds(device, role))
+            if (device.Kind == kind && Shows(device, role))
             {
                 return device.Id;
             }
@@ -187,8 +191,19 @@ internal sealed class DefaultDeviceLock : IDisposable
         return null;
     }
 
-    /// <summary>Whether one device holds one of the two roles the lock keeps.</summary>
+    /// <summary>
+    /// Whether one device holds every Windows role one of the lock's two
+    /// roles covers. For audio that is console and multimedia both — a
+    /// per-role switcher can move multimedia alone, and a device that has
+    /// lost half the pair is one to put the pair back on.
+    /// </summary>
     private static bool Holds(AudioDeviceState device, DefaultRole role) =>
+        role == DefaultRole.Communications
+            ? device.IsDefaultCommunications
+            : device.IsDefault && device.IsDefaultMultimedia;
+
+    /// <summary>The device Windows shows as holding one of the lock's roles.</summary>
+    private static bool Shows(AudioDeviceState device, DefaultRole role) =>
         role == DefaultRole.Communications ? device.IsDefaultCommunications : device.IsDefault;
 
     /// <summary>

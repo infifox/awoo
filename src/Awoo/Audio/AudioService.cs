@@ -62,6 +62,15 @@ internal sealed class AudioService : IAudioService
     private string? _commsOutputId;
     private string? _commsInputId;
 
+    /// <summary>
+    /// The multimedia default per flow. Everything awoo or Windows' own
+    /// Sound settings writes keeps it with console, but a per-role switcher
+    /// can move it alone, and the default-device lock has to see that to put
+    /// it back. Nothing in the UI shows it.
+    /// </summary>
+    private string? _multimediaOutputId;
+    private string? _multimediaInputId;
+
     private bool _disposed;
 
     /// <param name="dispatch">
@@ -274,6 +283,8 @@ internal sealed class AudioService : IAudioService
         _defaultInputId = DefaultId(DataFlow.Capture, Role.Console);
         _commsOutputId = DefaultId(DataFlow.Render, Role.Communications);
         _commsInputId = DefaultId(DataFlow.Capture, Role.Communications);
+        _multimediaOutputId = DefaultId(DataFlow.Render, Role.Multimedia);
+        _multimediaInputId = DefaultId(DataFlow.Capture, Role.Multimedia);
 
         Publish();
     }
@@ -444,6 +455,7 @@ internal sealed class AudioService : IAudioService
                 endpoint.Percent,
                 endpoint.IsMuted,
                 endpoint.Id == DefaultIdFor(endpoint.Kind),
+                endpoint.Id == MultimediaIdFor(endpoint.Kind),
                 endpoint.Id == CommunicationsIdFor(endpoint.Kind),
                 endpoint.Spatial))
             .ToArray();
@@ -520,6 +532,9 @@ internal sealed class AudioService : IAudioService
     private string? CommunicationsIdFor(DeviceKind kind) =>
         kind == DeviceKind.Output ? _commsOutputId : _commsInputId;
 
+    private string? MultimediaIdFor(DeviceKind kind) =>
+        kind == DeviceKind.Output ? _multimediaOutputId : _multimediaInputId;
+
     /// <summary>
     /// Whether this endpoint already holds every role a switch would set,
     /// which makes the switch nothing to do. Asked per role-set rather than
@@ -529,8 +544,10 @@ internal sealed class AudioService : IAudioService
     private bool AlreadyHolds(string deviceId, DeviceKind kind, DefaultRole role) => role switch
     {
         DefaultRole.Communications => deviceId == CommunicationsIdFor(kind),
-        DefaultRole.Audio => deviceId == DefaultIdFor(kind),
-        _ => deviceId == DefaultIdFor(kind) && deviceId == CommunicationsIdFor(kind),
+        DefaultRole.Audio => deviceId == DefaultIdFor(kind) && deviceId == MultimediaIdFor(kind),
+        _ => deviceId == DefaultIdFor(kind) &&
+            deviceId == MultimediaIdFor(kind) &&
+            deviceId == CommunicationsIdFor(kind),
     };
 
     /// <summary>
@@ -646,12 +663,12 @@ internal sealed class AudioService : IAudioService
 
         public int OnDefaultDeviceChanged(DataFlow flow, Role role, string? deviceId)
         {
-            // Console and communications are the two defaults awoo shows, so
-            // either moving is news. Multimedia is not: it rides with console
-            // everywhere awoo or Windows' own settings set a default, and a
-            // refresh for it would only re-read what the console
-            // notification already brought.
-            return role is Role.Console or Role.Communications ? Refresh() : CoreAudio.S_OK;
+            // All three roles: console and communications are the defaults
+            // awoo shows, and multimedia — which rides with console in
+            // everything awoo or Windows' own settings write — can still be
+            // moved alone by a per-role switcher, which the default-device
+            // lock has to hear about to put it back.
+            return Refresh();
         }
 
         public int OnPropertyValueChanged(string deviceId, PropertyKey key)

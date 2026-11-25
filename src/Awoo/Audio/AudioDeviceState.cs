@@ -121,6 +121,12 @@ internal sealed class SpatialState : IEquatable<SpatialState>
 /// Whether this is the default device for its kind — the console role, which
 /// is what Windows' own Sound settings means by "default".
 /// </param>
+/// <param name="IsDefaultMultimedia">
+/// Whether this holds the multimedia role for its kind. It rides with the
+/// console role in everything awoo or Windows' own settings write, so the UI
+/// never shows it — but a per-role switcher can move it alone, and the
+/// default-device lock reads this to put it back.
+/// </param>
 /// <param name="IsDefaultCommunications">
 /// Whether this is the communications default for its kind: the device
 /// Windows puts calls through. The same device as <paramref name="IsDefault"/>
@@ -138,5 +144,6 @@ internal readonly record struct AudioDeviceState(
     int Percent,
     bool IsMuted,
     bool IsDefault,
+    bool IsDefaultMultimedia,
     bool IsDefaultCommunications,
     SpatialState Spatial);
