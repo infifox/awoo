@@ -115,7 +115,16 @@ internal sealed class SettingsViewModel : IDisposable, INotifyPropertyChanged
     /// </summary>
     public void Dispose() => _audio.DevicesChanged -= OnDevicesChanged;
 
-    private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices) => Apply(devices);
+    private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices)
+    {
+        // Only the list the service currently holds — a revert made from
+        // inside this event delivers the corrected list first and the stale
+        // one after it. DevicesViewModel says why in full.
+        if (ReferenceEquals(devices, _audio.Devices))
+        {
+            Apply(devices);
+        }
+    }
 
     private void Apply(IReadOnlyList<AudioDeviceState> devices)
     {

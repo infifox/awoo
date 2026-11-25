@@ -65,7 +65,18 @@ public sealed class DevicesViewModel : INotifyPropertyChanged
     /// </summary>
     internal void Refresh() => _audio.RefreshSpatialFormats();
 
-    private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices) => Apply(devices);
+    private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices)
+    {
+        // Only the list the service currently holds. DefaultDeviceLock
+        // reverts from inside this same event, which publishes the corrected
+        // list to every subscriber mid-delivery — and then this, the older
+        // list, arrives last. Applying it would mark the foreign device as
+        // the default with nothing coming to correct it.
+        if (ReferenceEquals(devices, _audio.Devices))
+        {
+            Apply(devices);
+        }
+    }
 
     /// <summary>
     /// A device hidden or shown again in the settings window. The same

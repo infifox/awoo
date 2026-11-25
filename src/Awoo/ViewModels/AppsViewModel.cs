@@ -72,6 +72,14 @@ public sealed class AppsViewModel : INotifyPropertyChanged
     /// </summary>
     private void OnDevicesChanged(object? sender, IReadOnlyList<AudioDeviceState> devices)
     {
+        // Only the list the service currently holds — a revert made from
+        // inside this event delivers the corrected list first and the stale
+        // one after it. DevicesViewModel says why in full.
+        if (!ReferenceEquals(devices, _audio.Devices))
+        {
+            return;
+        }
+
         _outputs = OutputsOf(devices);
 
         foreach (var row in Playback.Concat(Recording))
