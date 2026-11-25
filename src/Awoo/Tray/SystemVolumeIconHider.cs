@@ -66,6 +66,14 @@ internal sealed class SystemVolumeIconHider
     private const uint WM_AWOO_TAP_RESTORE = WM_APP + 3;
     private const uint WM_AWOO_TAP_QUERY = WM_APP + 4;
 
+    /// <summary>
+    /// How long one message to the TAP may wait for Explorer's XAML thread.
+    /// Bounded, where SendMessage is not: a hung Explorer would otherwise
+    /// hang whatever thread is talking to it — awoo's exit included, whose
+    /// restore runs on the UI thread.
+    /// </summary>
+    private const uint SendTimeoutMilliseconds = 5000;
+
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int InitializeXamlDiagnosticsExFn(
         [MarshalAs(UnmanagedType.LPWStr)] string endpointName,
@@ -124,7 +132,7 @@ internal sealed class SystemVolumeIconHider
             var window = ResolveWindow();
             if (window != IntPtr.Zero)
             {
-                NativeMethods.SendMessage(window, WM_AWOO_TAP_RESTORE, IntPtr.Zero, IntPtr.Zero);
+                TrySend(window, WM_AWOO_TAP_RESTORE, out _);
             }
         }
         catch (Exception ex)
@@ -198,16 +206,25 @@ internal sealed class SystemVolumeIconHider
 
     private HideOutcome DriveHide(IntPtr window)
     {
-        var protocol = NativeMethods.SendMessage(window, WM_AWOO_TAP_PROTOCOL, IntPtr.Zero, IntPtr.Zero);
-        if (protocol.ToInt64() != ProtocolVersion)
+        if (!TrySend(window, WM_AWOO_TAP_PROTOCOL, out var protocol))
         {
-            Debug.WriteLine($"[awoo] TAP protocol mismatch: got {protocol.ToInt64()}, want {ProtocolVersion}");
+            Debug.WriteLine("[awoo] TAP did not answer the protocol check");
+            return HideOutcome.Failed;
+        }
+
+        if (protocol != ProtocolVersion)
+        {
+            Debug.WriteLine($"[awoo] TAP protocol mismatch: got {protocol}, want {ProtocolVersion}");
             return HideOutcome.Failed;
         }
 
         _window = window;
-        var hidden = NativeMethods.SendMessage(window, WM_AWOO_TAP_HIDE, IntPtr.Zero, IntPtr.Zero);
-        if (hidden.ToInt64() == 1)
+        if (!TrySend(window, WM_AWOO_TAP_HIDE, out var hidden))
+        {
+            return HideOutcome.Failed;
+        }
+
+        if (hidden == 1)
         {
             return HideOutcome.Hidden;
         }
@@ -220,13 +237,33 @@ internal sealed class SystemVolumeIconHider
         while (DateTime.UtcNow < deadline)
         {
             Thread.Sleep(100);
-            if (NativeMethods.SendMessage(window, WM_AWOO_TAP_QUERY, IntPtr.Zero, IntPtr.Zero).ToInt64() == 1)
+            if (TrySend(window, WM_AWOO_TAP_QUERY, out var applied) && applied == 1)
             {
                 return HideOutcome.Hidden;
             }
         }
 
         return HideOutcome.NotFound;
+    }
+
+    /// <summary>
+    /// Sends the TAP's window one message and waits a bounded while for the
+    /// reply. False when the wait gave up — Explorer hung, or gone — which
+    /// callers treat the same as the mechanism not coming up.
+    /// </summary>
+    private static bool TrySend(IntPtr window, uint message, out long reply)
+    {
+        var answered = NativeMethods.SendMessageTimeout(
+            window,
+            message,
+            IntPtr.Zero,
+            IntPtr.Zero,
+            NativeMethods.SMTO_ABORTIFHUNG,
+            SendTimeoutMilliseconds,
+            out var result);
+
+        reply = result.ToInt64();
+        return answered != IntPtr.Zero;
     }
 
     /// <summary>

@@ -93,12 +93,24 @@ internal static partial class NativeMethods
     internal static partial uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
     /// <summary>
-    /// Sends a window a message and waits for it to be handled, the reply the
-    /// LRESULT. Used to talk to the tray TAP's window inside Explorer, where
-    /// the reply is a small integer that crosses the process boundary as is.
+    /// Sends a window a message and waits — up to a limit — for it to be
+    /// handled, the reply in <paramref name="result"/>. Used to talk to the
+    /// tray TAP's window inside Explorer, where the reply is a small integer
+    /// that crosses the process boundary as is. Returns zero when the wait
+    /// gave up, which a plain SendMessage to a hung Explorer never does.
     /// </summary>
-    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
-    internal static partial IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageTimeoutW", SetLastError = true)]
+    internal static partial IntPtr SendMessageTimeout(
+        IntPtr hwnd,
+        uint message,
+        IntPtr wParam,
+        IntPtr lParam,
+        uint flags,
+        uint timeoutMilliseconds,
+        out IntPtr result);
+
+    /// <summary>SMTO_ABORTIFHUNG — return at once if the window's thread is already hung.</summary>
+    internal const uint SMTO_ABORTIFHUNG = 0x0002;
 
     /// <summary>SWP_NOZORDER — leave the window where it is in the z-order.</summary>
     internal const uint SWP_NOZORDER = 0x0004;
