@@ -84,6 +84,25 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool SetForegroundWindow(IntPtr hwnd);
 
+    /// <summary>SWP_NOZORDER — leave the window where it is in the z-order.</summary>
+    internal const uint SWP_NOZORDER = 0x0004;
+
+    /// <summary>SWP_NOACTIVATE — moving a window is not a reason to activate it.</summary>
+    internal const uint SWP_NOACTIVATE = 0x0010;
+
+    /// <summary>SWP_NOOWNERZORDER — and leave the owner's z-order alone too.</summary>
+    internal const uint SWP_NOOWNERZORDER = 0x0200;
+
+    /// <summary>
+    /// Moves and resizes a window in the one call. Two calls — a resize and
+    /// then a move — are two separate geometry changes, and a window anchored
+    /// by its bottom edge is drawn in the wrong place between them.
+    /// </summary>
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter,
+        int x, int y, int width, int height, uint flags);
+
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool DestroyIcon(IntPtr icon);

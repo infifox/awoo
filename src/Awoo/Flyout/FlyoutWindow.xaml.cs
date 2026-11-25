@@ -5,6 +5,7 @@ using Awoo.ViewModels;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using WinRT.Interop;
 
@@ -43,6 +44,7 @@ public sealed partial class FlyoutWindow : Window
     private DateTimeOffset _hiddenAt = DateTimeOffset.MinValue;
     private bool _exiting;
     private bool _relayoutQueued;
+    private bool _placeQueued;
 
     internal FlyoutWindow(DevicesViewModel devices, AppsViewModel apps)
     {
@@ -175,8 +177,20 @@ public sealed partial class FlyoutWindow : Window
                 (int)Math.Round(WidthDips * scale) + frame.Width,
                 (int)Math.Round(ContentHeightDips() * scale) + frame.Height);
 
-            AppWindow.Resize(size);
-            AppWindow.Move(FlyoutPlacement.For(size, scale));
+            // One call rather than AppWindow.Resize and AppWindow.Move: this
+            // flyout is anchored by its bottom edge, so a taller one has to
+            // move up by exactly what it grew by, and two calls put a frame
+            // between the growing and the moving in which it has done the
+            // one and not the other.
+            var at = FlyoutPlacement.For(size, scale);
+            NativeMethods.SetWindowPos(
+                _hwnd,
+                IntPtr.Zero,
+                at.X,
+                at.Y,
+                size.Width,
+                size.Height,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOOWNERZORDER);
         }
     }
 
@@ -282,18 +296,56 @@ public sealed partial class FlyoutWindow : Window
         DevicesTab.Visibility = showDevices ? Visibility.Visible : Visibility.Collapsed;
         ApplicationsTab.Visibility = showDevices ? Visibility.Collapsed : Visibility.Visible;
 
-        // Resized here rather than only on the queue: a queued resize leaves
-        // one frame with the tab that was just shown drawn at the other tab's
-        // height, which is the flash. Place measures the content itself, so
-        // the swap and the window's new size land in the same frame.
-        if (AppWindow.IsVisible)
+        PlaceOnNextFrame();
+    }
+
+    /// <summary>
+    /// Re-places the flyout at the top of the next frame rather than now.
+    /// </summary>
+    /// <remarks>
+    /// Resizing from inside the handler that swapped the tabs is what the
+    /// flash is: the window's geometry is Win32's and changes the moment it
+    /// is asked, while the swapped content is XAML's and is not drawn until
+    /// the frame after, so one frame shows the tab that was just hidden
+    /// stretched to the tab that was just shown's height.
+    ///
+    /// <see cref="Microsoft.UI.Xaml.Media.CompositionTarget.Rendering"/> is
+    /// raised at the top of a frame, before that frame lays out and draws,
+    /// which is the one place a resize can be issued and be part of the same
+    /// frame as the content it belongs to. Should it land late all the same,
+    /// what shows for a frame is the new tab at the old height — a strip of
+    /// the window clipped or empty, never the wrong tab.
+    /// </remarks>
+    private void PlaceOnNextFrame()
+    {
+        if (_placeQueued || _exiting || !AppWindow.IsVisible)
         {
-            Place();
+            return;
         }
 
-        // And again once the rows this tab has just shown have been through a
-        // real layout pass, in case the measurement above was an estimate.
-        QueueRelayout();
+        _placeQueued = true;
+
+        EventHandler<object>? onRendering = null;
+        onRendering = (_, _) =>
+        {
+            CompositionTarget.Rendering -= onRendering;
+            _placeQueued = false;
+
+            if (_exiting || !AppWindow.IsVisible)
+            {
+                return;
+            }
+
+            Place();
+
+            // And again once the rows this tab has just shown have been
+            // through a real layout pass, in case the measurement above was
+            // an estimate. After the frame rather than before it: a relayout
+            // queued ahead of the swap's own frame is the flash again.
+            QueueRelayout();
+        };
+
+        CompositionTarget.Rendering += onRendering;
     }
 
     /// <summary>
